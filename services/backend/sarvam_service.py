@@ -161,15 +161,38 @@ async def synthesize_speech(
         return {"success": False, "error": str(e)}
 
 
+import numpy as np
+
+
+def resample_pcm16(pcm_bytes: bytes, orig_sr: int, target_sr: int) -> bytes:
+    """
+    Resamples 16-bit mono PCM audio bytes from orig_sr to target_sr using numpy linear interpolation.
+    Prevents pitch shifting or slowed-down/distorted playback when fed into Vapi WebRTC/SIP engines.
+    """
+    if not pcm_bytes or orig_sr == target_sr or target_sr <= 0:
+        return pcm_bytes
+    try:
+        audio = np.frombuffer(pcm_bytes, dtype=np.int16)
+        num_output_samples = int(round(len(audio) * float(target_sr) / orig_sr))
+        x_old = np.linspace(0, 1, len(audio))
+        x_new = np.linspace(0, 1, num_output_samples)
+        resampled = np.interp(x_new, x_old, audio).astype(np.int16)
+        return resampled.tobytes()
+    except Exception as e:
+        logger.error(f"Failed to resample PCM bytes: {e}")
+        return pcm_bytes
+
+
 async def synthesize_raw_pcm(
     text: str,
     language: Optional[str] = "hi",
     speaker: Optional[str] = "priya",
+    target_sample_rate: Optional[int] = 24000,
     api_key: Optional[str] = None,
 ) -> Tuple[Optional[bytes], int]:
     """
-    Synthesizes speech and returns raw 16-bit PCM bytes and sample rate
-    specifically required by Vapi Custom Voice webhook interface.
+    Synthesizes speech using Sarvam Bulbul v3 and returns raw 16-bit PCM bytes resampled to target_sample_rate
+    (default 24000 Hz expected by Vapi Custom Voice).
     Returns: (pcm_bytes, sample_rate)
     """
     res = await synthesize_speech(text, language=language, speaker=speaker, api_key=api_key)
@@ -179,9 +202,12 @@ async def synthesize_raw_pcm(
     try:
         raw_wav_bytes = base64.b64decode(res["audio_b64"])
         with wave.open(io.BytesIO(raw_wav_bytes), "rb") as wf:
-            sample_rate = wf.getframerate()
+            orig_sample_rate = wf.getframerate()
             frames = wf.readframes(wf.getnframes())
-            return frames, sample_rate
+
+            target_sr = target_sample_rate or 24000
+            resampled_frames = resample_pcm16(frames, orig_sample_rate, target_sr)
+            return resampled_frames, target_sr
     except Exception as e:
         logger.exception(f"Failed to extract PCM frames from Sarvam WAV: {e}")
         return None, 0

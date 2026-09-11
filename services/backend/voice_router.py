@@ -420,6 +420,7 @@ async def vapi_custom_voice_webhook(request: Request):
         # If it's a voice synthesis request
         if msg_type == "voice-request":
             text = msg.get("text", "")
+            target_sr = msg.get("sampleRate") or 24000
             call_obj = msg.get("call", {})
             # Determine language if specified in call assistant or default to hi
             language = "hi"
@@ -436,10 +437,11 @@ async def vapi_custom_voice_webhook(request: Request):
             speaker = creds.get("sarvam_speaker", "priya")
             api_key = creds.get("sarvam_api_key")
 
-            pcm_bytes, sample_rate = await sarvam_service.synthesize_raw_pcm(
+            pcm_bytes, out_sr = await sarvam_service.synthesize_raw_pcm(
                 text=text,
                 language=language,
                 speaker=speaker,
+                target_sample_rate=target_sr,
                 api_key=api_key,
             )
             if pcm_bytes:
