@@ -64,6 +64,10 @@ app.add_middleware(
 # Mount Voice Fleet Router
 app.include_router(voice_router.router, prefix="/api/voice", tags=["Voice Fleet"])
 
+# Also expose Vapi Webhooks at root path level for Vapi server URL compatibility
+app.add_api_route("/webhook/vapi/custom-voice", voice_router.vapi_custom_voice_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
+app.add_api_route("/webhook/vapi", voice_router.vapi_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
+
 # ─────────────────────────── Supabase Auth Provisioning ─────────────────
 
 class RegisterRequest(BaseModel):

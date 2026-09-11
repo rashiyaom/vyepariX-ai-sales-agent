@@ -280,19 +280,15 @@ async def dispatch_vapi_call(
     provider = creds.get("voice_provider", "sarvam")
     webhook_url = creds.get("public_webhook_url", "").strip()
 
-    if provider == "sarvam" and webhook_url:
+    if provider == "sarvam":
+        custom_url = f"{webhook_url.rstrip('/')}/webhook/vapi/custom-voice" if webhook_url else "http://localhost:8000/webhook/vapi/custom-voice"
         voice_block = {
             "provider": "custom-voice",
             "server": {
-                "url": f"{webhook_url.rstrip('/')}/webhook/vapi/custom-voice",
+                "url": custom_url,
             },
         }
-    elif provider == "sarvam":
-        logger.info("Sarvam active. Note: for cloud Vapi live phone calls, configure PUBLIC_WEBHOOK_URL in Voice Settings.")
-        voice_block = {
-            "provider": "11labs",
-            "voiceId": "sarah",
-        }
+        logger.info(f"Using Sarvam AI Custom Voice endpoint for Vapi call: {custom_url}")
     elif provider == "cartesia":
         v_id = creds.get("voice_id", "sonic-english")
         if v_id in ("priya", "sarah", ""):

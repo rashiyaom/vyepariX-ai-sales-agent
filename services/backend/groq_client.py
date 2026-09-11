@@ -371,15 +371,37 @@ Analyze this single uploaded document or web page and return ONLY a valid JSON o
 CRITICAL ANTI-HALLUCINATION RULES:
 - Every finding, metric, and quote MUST be traceable to text explicitly present in the document content below.
 - If a metric is not present, omit it — do NOT invent placeholder values like '$0', 'N/A estimated', or industry averages.
-- If the document contains no financial data, leave extracted_metrics as an empty array [].
-- Do NOT add generic business advice that is not derived from this specific document's content.
-- verifiable_quotes must be exact character-for-character excerpts from the document text.
+- If the document contains no financial data or is a personal/visual portfolio, leave extracted_metrics as an empty array [].
+- NEVER invent revenue, margins, churn %, cash balances, or dates. If not explicitly written, DO NOT output it.
+- verifiable_quotes must be exact character-for-character excerpts from the document text. If none exist, use an empty array [].
 
 Return raw JSON only.
 """
 
 def analyze_single_document(doc_name: str, doc_type: str, content_text: str) -> DocumentInsight:
     """Analyze a single uploaded document independently to ensure 100% thorough extraction."""
+    cleaned = (content_text or "").strip()
+    unreadable_prefixes = (
+        "(Could not",
+        "(No readable text",
+        "(Vision model processed",
+        "(DOCX contained no text",
+        "(Spreadsheet contained no data",
+        "(pandas not installed",
+        "(PDF contained no",
+    )
+    if not cleaned or any(cleaned.startswith(p) for p in unreadable_prefixes) or len(cleaned) < 15:
+        return DocumentInsight(
+            source_name=doc_name,
+            source_type=doc_type,
+            document_purpose=f"Visual asset or file without extractable textual/numerical records.",
+            key_findings=[f"No readable text or quantitative records detected in {doc_name}."],
+            extracted_metrics=[],
+            strengths_identified=[],
+            risks_or_red_flags=[f"Asset {doc_name} did not yield structured records."],
+            verifiable_quotes=[],
+        )
+
     client = _get_client()
 
     user_msg = f"DOCUMENT: {doc_name} (Format: {doc_type})\n\nCONTENT:\n{content_text[:12000]}"
@@ -411,6 +433,8 @@ def analyze_single_document(doc_name: str, doc_type: str, content_text: str) -> 
         source_type=doc_type,
         document_purpose=f"Analysis of {doc_name}",
         key_findings=[f"Document {doc_name} successfully ingested into intelligence pipeline."],
+        extracted_metrics=[],
+        verifiable_quotes=[],
     )
 
 
@@ -424,13 +448,13 @@ You MUST produce a comprehensive, high-precision commercial growth report with c
 DATA CALIBRATION & REASONING GUIDELINES:
 1. "growth_forecast": STRICT GROUND TRUTH: Only provide a 6-period trajectory if exact numerical time-series revenue or transactional ledgers are present in the dossier. If no verified financial ledger exists, return [] (empty list). NEVER invent or simulate status-quo revenue or forecast numbers.
 2. "conversion_funnel": STRICT GROUND TRUTH: Only provide sequential pipeline stages if actual stage/pipeline tracking records are present in the dossier. If no stage records exist, return [] (empty list). NEVER invent synthetic stages.
-3. "timeline_roadmap": Provide 4 actionable, phased execution milestones (Days 0–30, Days 30–60, Days 60–90, Days 90–180) with specific target metrics and 3 concrete deliverables per phase tailored to their product catalog.
-4. "financial_highlights": Extract 3-5 quantitative financial & commercial metrics (e.g. Estimated Average Deal Value, Analyzed Market Segment Size, Detected Pricing Tiers, Gross Margin Benchmarks).
-5. "target_customers": List 3-5 specific buyer personas/ICPs with description, evidence from the dossier, specific pain points, and estimated deal sizes.
-6. "products_services": List 3-6 specific products, SKUs, API tiers, or service lines extracted from the files/website.
-7. "current_marketing_channels": List 3-5 sales/marketing channels with evidence and strength (strong|moderate|weak).
+3. "timeline_roadmap": Provide 4 actionable, phased execution milestones (Days 0–30, Days 30–60, Days 60–90, Days 90–180) with specific target metrics and 3 concrete deliverables per phase tailored to their actual offerings.
+4. "financial_highlights": STRICT GROUND TRUTH: ONLY extract quantitative financial metrics if verified numbers (e.g. ARR, revenue, pricing, margin, verified deal size) explicitly appear in the dossier. If no financial metrics are present, return [] (empty list). NEVER invent placeholder or hypothetical financial metrics.
+5. "target_customers": List 2-4 realistic target personas/audiences with description, evidence from the dossier, and pain points.
+6. "products_services": List the actual products, projects, services, or competencies explicitly mentioned in the dossier. For personal portfolios or developer profiles, list their actual projects, core competencies, and technical services. NEVER invent fake SaaS subscription pricing, monthly plans, or enterprise software tiers.
+7. "current_marketing_channels": List 2-4 sales/marketing channels with evidence and strength (strong|moderate|weak).
 8. "swot_analysis": Provide 3-5 high-impact items for EACH of the 4 quadrants (strengths, weaknesses, opportunities, threats).
-9. "recommendations": Provide 4-6 prioritized strategic playbooks with action_steps, timeframe, and expected_roi.
+9. "recommendations": Provide 3-5 prioritized strategic playbooks with action_steps, timeframe, and expected_roi.
 10. "opportunity_score": Dynamic integer 0-100 reflecting commercial upside potential.
 11. "confidence_score": Dynamic integer 75-98 reflecting evidence depth.
 

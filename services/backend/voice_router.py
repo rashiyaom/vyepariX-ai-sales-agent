@@ -367,6 +367,44 @@ async def generate_speech(payload: TTSRequest):
     return res
 
 
+@router.get("/sarvam/test")
+@router.post("/sarvam/test")
+async def test_sarvam_service(speaker: Optional[str] = "priya", language: Optional[str] = "hi"):
+    """
+    Directly test Sarvam AI Indic voice synthesis connectivity and audio output.
+    Returns synthesized sample audio metadata and base64 WAV payload.
+    """
+    creds = await voice_engine.get_credentials()
+    api_key = creds.get("sarvam_api_key")
+    if not api_key:
+        return {"success": False, "error": "SARVAM_API_KEY is not configured in backend environment or voice settings."}
+
+    test_phrase = "नमस्ते! मैं व्यापारी एक्स की एआई वॉइस एजेंट हूँ। आपकी क्या सहायता कर सकती हूँ?"
+    if language in ("gu", "gujarati"):
+        test_phrase = "નમસ્તે! હું વ્યાપારી એક્સ એઆઈ વોઈસ એજન્ટ છું. હું તમને કેવી રીતે મદદ કરી શકું?"
+
+    res = await sarvam_service.synthesize_speech(
+        text=test_phrase,
+        language=language,
+        speaker=speaker or "priya",
+        api_key=api_key,
+    )
+    if res.get("success"):
+        return {
+            "success": True,
+            "provider": "sarvam",
+            "model": "bulbul:v3",
+            "speaker": speaker or "priya",
+            "language": language or "hi",
+            "sample_phrase": test_phrase,
+            "audio_b64": res.get("audio_b64"),
+            "mime_type": "audio/wav",
+            "message": "Sarvam AI API connection & Indic voice synthesis operational!"
+        }
+    return res
+
+
+
 @router.post("/webhook/vapi/custom-voice")
 async def vapi_custom_voice_webhook(request: Request):
     """
