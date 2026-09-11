@@ -30,7 +30,12 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────── Constants ─────────────────────────────────
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; BizIntelBot/1.0; +https://github.com/biz-intel)"
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"macOS"',
 }
 
 PAGE_KEYWORDS = [
@@ -171,15 +176,32 @@ async def _fetch_playwright(url: str) -> tuple[str | None, str | None]:
         from playwright.async_api import async_playwright
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+            )
             ctx = await browser.new_context(
                 user_agent=HEADERS["User-Agent"],
                 java_script_enabled=True,
+                viewport={"width": 1280, "height": 800},
             )
             page = await ctx.new_page()
+            await page.add_init_script("delete Object.getPrototypeOf(navigator).webdriver")
             await page.goto(url, timeout=30000, wait_until="networkidle")
             # Extra wait for late-loading SPAs
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(1500)
+
+            # Dismiss intro screens / splash loaders (e.g. "tap to skip", "enter")
+            try:
+                for selector in ["text=tap to skip", "text=skip", "text=enter", "text=explore", "button:has-text('Skip')", "button:has-text('Enter')"]:
+                    elem = await page.query_selector(selector)
+                    if elem:
+                        await elem.click()
+                        await page.wait_for_timeout(1500)
+                        break
+            except Exception:
+                pass
+
             raw_html = await page.content()
             await browser.close()
             text = trafilatura.extract(
@@ -192,6 +214,131 @@ async def _fetch_playwright(url: str) -> tuple[str | None, str | None]:
     except Exception as e:
         logger.warning(f"Playwright fetch failed for {url}: {e}")
         return None, None
+
+
+def _extract_semantic_elements(html: str) -> dict:
+    """
+    Extract high-value structured semantic elements from raw HTML:
+    - Meta description, keywords, OpenGraph titles & descriptions
+    - Schema.org JSON-LD structured data (Product, Organization, Service, LocalBusiness, FAQ)
+    - Headings (H1, H2, H3)
+    - Pricing tables & pricing cards
+    - Key bullet points & offerings
+    - Contact details & social channels
+    """
+    if not html:
+        return {}
+
+    import json
+    import html as html_lib
+
+    elements: dict[str, Any] = {
+        "title": "",
+        "meta_description": "",
+        "json_ld_schemas": [],
+        "headings": [],
+        "pricing_signals": [],
+        "key_bullets": [],
+        "contact_info": [],
+    }
+
+    # 1. Title & Meta tags
+    title_match = re.search(r"<title[^>]*>([^<]{1,250})</title>", html, re.IGNORECASE)
+    if title_match:
+        elements["title"] = html_lib.unescape(title_match.group(1)).strip()
+
+    meta_desc_match = re.search(
+        r'<meta[^>]*?(?:name|property)=["\'](?:description|og:description)["\'][^>]*?content=["\']([^"\']+)["\']',
+        html,
+        re.IGNORECASE,
+    ) or re.search(
+        r'<meta[^>]*?content=["\']([^"\']+)["\'][^>]*?(?:name|property)=["\'](?:description|og:description)["\']',
+        html,
+        re.IGNORECASE,
+    )
+    if meta_desc_match:
+        elements["meta_description"] = html_lib.unescape(meta_desc_match.group(1)).strip()
+
+    # 2. JSON-LD Schemas
+    for script_match in re.finditer(r'<script\s+type=["\']application/ld\+json["\'][^>]*>([\s\S]*?)</script>', html, re.IGNORECASE):
+        try:
+            raw_json = script_match.group(1).strip()
+            if raw_json:
+                data = json.loads(raw_json)
+                if isinstance(data, dict):
+                    schema_type = data.get("@type", "Schema")
+                    name = data.get("name") or data.get("headline") or ""
+                    desc = data.get("description") or ""
+                    offers = data.get("offers") or data.get("hasOfferCatalog")
+                    summary = f"Type: {schema_type}"
+                    if name:
+                        summary += f" | Name: {name}"
+                    if desc:
+                        summary += f" | Description: {desc[:200]}"
+                    if offers:
+                        summary += f" | Offers/Pricing: {str(offers)[:200]}"
+                    elements["json_ld_schemas"].append(summary)
+                elif isinstance(data, list):
+                    for item in data[:3]:
+                        if isinstance(item, dict):
+                            elements["json_ld_schemas"].append(f"Type: {item.get('@type')} | Name: {item.get('name', '')}")
+        except Exception:
+            pass
+
+    # 3. Headings (H1, H2, H3)
+    for h_match in re.finditer(r'<h([1-3])[^>]*>([\s\S]*?)</h\1>', html, re.IGNORECASE):
+        h_level = h_match.group(1)
+        h_text = re.sub(r'<[^>]+>', ' ', h_match.group(2))
+        h_text = re.sub(r'\s+', ' ', html_lib.unescape(h_text)).strip()
+        if h_text and len(h_text) > 2 and len(h_text) < 180:
+            elements["headings"].append(f"H{h_level}: {h_text}")
+
+    # Deduplicate headings while preserving order
+    seen_h = set()
+    elements["headings"] = [h for h in elements["headings"] if not (h in seen_h or seen_h.add(h))][:15]
+
+    # 4. Pricing elements & currency patterns
+    # Find pricing cards, tables, or blocks mentioning currency
+    pricing_patterns = re.finditer(
+        r'(?:[$₹€£]\s*\d+(?:[.,]\d+)?(?:\s*(?:/\s*(?:mo|month|yr|year|user|seat|sq\.?ft|unit|piece|kg))|k|m)?)|(?:(?:₹|INR|USD|\$)\s*\d+)',
+        html,
+        re.IGNORECASE,
+    )
+    for p_match in pricing_patterns:
+        start = max(0, p_match.start() - 60)
+        end = min(len(html), p_match.end() + 80)
+        snippet = html[start:end]
+        snippet_clean = re.sub(r'<[^>]+>', ' ', snippet)
+        snippet_clean = re.sub(r'\s+', ' ', html_lib.unescape(snippet_clean)).strip()
+        if snippet_clean and len(snippet_clean) > 8:
+            elements["pricing_signals"].append(snippet_clean)
+
+    # Deduplicate pricing signals
+    seen_p = set()
+    elements["pricing_signals"] = [p for p in elements["pricing_signals"] if not (p in seen_p or seen_p.add(p))][:8]
+
+    # 5. Key Feature Bullets & List items
+    for li_match in re.finditer(r'<li[^>]*>([\s\S]*?)</li>', html, re.IGNORECASE):
+        li_text = re.sub(r'<[^>]+>', ' ', li_match.group(1))
+        li_text = re.sub(r'\s+', ' ', html_lib.unescape(li_text)).strip()
+        if li_text and 15 < len(li_text) < 220:
+            elements["key_bullets"].append(li_text)
+
+    seen_b = set()
+    elements["key_bullets"] = [b for b in elements["key_bullets"] if not (b in seen_b or seen_b.add(b))][:12]
+
+    # 6. Contact Information & Social Channels
+    emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', html))
+    # Filter out common false positives
+    clean_emails = [e for e in emails if not e.endswith(('.png', '.jpg', '.webp', '.js', '.css'))][:3]
+    if clean_emails:
+        elements["contact_info"].append(f"Email: {', '.join(clean_emails)}")
+
+    phones = set(re.findall(r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', html))
+    if phones:
+        elements["contact_info"].append(f"Phone: {', '.join(list(phones)[:3])}")
+
+    return elements
 
 
 def _extract_text_fallback(html: str) -> str:
@@ -219,8 +366,8 @@ def _extract_text_fallback(html: str) -> str:
 
 async def fetch_page(url: str, client: httpx.AsyncClient) -> dict:
     """
-    Fetch a single page using universal 2-layer strategy with robust fallback.
-    Returns: {url, title, text, method}
+    Fetch a single page using universal 2-layer strategy with semantic structure extraction.
+    Returns: {url, title, text, semantic_elements, method}
     """
     raw_html, text = await _fetch_static(url, client)
     method = "static"
@@ -243,17 +390,45 @@ async def fetch_page(url: str, client: httpx.AsyncClient) -> dict:
         if fb:
             text = fb
 
-    if not text:
-        return {"url": url, "title": "", "text": "", "method": method}
+    if not raw_html and not text:
+        return {"url": url, "title": "", "text": "", "semantic_elements": {}, "method": method}
 
-    # Extract title from HTML
-    title = ""
-    if raw_html:
-        title_match = re.search(r"<title[^>]*>([^<]{1,200})</title>", raw_html, re.IGNORECASE)
-        if title_match:
-            title = title_match.group(1).strip()
+    # Extract rich semantic elements
+    semantic = _extract_semantic_elements(raw_html or "")
+    title = semantic.get("title") or ""
 
-    return {"url": url, "title": title, "text": text.strip(), "method": method}
+    # Assemble structured text representation
+    structured_sections = []
+    if semantic.get("meta_description"):
+        structured_sections.append(f"**Meta Description / Tagline:** {semantic['meta_description']}")
+
+    if semantic.get("json_ld_schemas"):
+        structured_sections.append("**Structured Data (Schema.org):**\n" + "\n".join(f"- {s}" for s in semantic["json_ld_schemas"]))
+
+    if semantic.get("headings"):
+        structured_sections.append("**Key Page Headings:**\n" + "\n".join(f"- {h}" for h in semantic["headings"]))
+
+    if semantic.get("pricing_signals"):
+        structured_sections.append("**Detected Pricing & Offer Signals:**\n" + "\n".join(f"- {p}" for p in semantic["pricing_signals"]))
+
+    if semantic.get("key_bullets"):
+        structured_sections.append("**Key Offerings / Features:**\n" + "\n".join(f"- {b}" for b in semantic["key_bullets"][:8]))
+
+    if semantic.get("contact_info"):
+        structured_sections.append("**Contact & Channels:** " + " | ".join(semantic["contact_info"]))
+
+    if text:
+        structured_sections.append(f"**Main Extracted Page Text:**\n{text.strip()}")
+
+    combined_text = "\n\n".join(structured_sections) if structured_sections else (text or "")
+
+    return {
+        "url": url,
+        "title": title,
+        "text": combined_text.strip(),
+        "semantic_elements": semantic,
+        "method": method,
+    }
 
 
 # ─────────────────────────── Multi-page Crawl ──────────────────────────
@@ -332,9 +507,15 @@ def discover_extra_context(company_name: str, domain: str) -> list[dict]:
     """
     results = []
     try:
-        from duckduckgo_search import DDGS
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
         with DDGS() as ddgs:
-            for query in [f"{company_name}", f"{company_name} reviews", f"site:{domain}"]:
+            queries = [f"{company_name} products overview", f"{company_name} business"]
+            if domain:
+                queries.append(f"site:{domain}")
+            for query in queries:
                 try:
                     for r in ddgs.text(query, max_results=5):
                         results.append(r)

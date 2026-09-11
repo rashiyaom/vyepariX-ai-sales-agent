@@ -73,17 +73,17 @@ export function LeadRadarModule({
     }
 
     return {
-      id: `lead-real-${idx + 1}`,
-      name: `${cust.segment_name} Buyer`,
-      title: `Head of Procurement / Tech (${cust.segment_name})`,
-      company: `${cust.segment_name} Corp`,
-      industry: effectiveIndustry || "B2B",
+      id: `icp-segment-${idx + 1}`,
+      name: `${cust.segment_name} Buyers`,
+      title: cust.description || `Commercial Buyer Segment (${cust.segment_name})`,
+      company: `${cust.segment_name} Vertical`,
+      industry: effectiveIndustry || "B2B Commercial",
       intentScore: computedScore,
-      dealSize: cust.estimated_deal_size || "$50,000 / yr",
+      dealSize: cust.estimated_deal_size || "Custom ICP Tier",
       signals: signalsList,
-      website: domain,
-      email: `procurement@${domain}`,
-      phone: `+1 (555) 019-${(100 + idx * 23).toString()}`,
+      website: `${effectiveCompanyName} ICP Profile`,
+      email: "Direct CRM / Outbound Target",
+      phone: "",
       status: "new",
     };
   });
@@ -256,10 +256,10 @@ export function LeadRadarModule({
                       <Building className="w-3 h-3 text-violet" /> {lead.company}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Globe className="w-3 h-3" /> {lead.website}
+                      <Globe className="w-3 h-3" /> {lead.industry}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Mail className="w-3 h-3" /> {lead.email}
+                    <span className="flex items-center gap-1 text-violet">
+                      <Sparkles className="w-3 h-3" /> Groq AI Qualified ICP
                     </span>
                   </div>
 

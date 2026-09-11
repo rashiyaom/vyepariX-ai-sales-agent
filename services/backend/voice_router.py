@@ -13,11 +13,13 @@ import asyncio
 import logging
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Header, Query, Request, Response
 from pydantic import BaseModel, Field
 
 import database as db
 import voice_engine
+import sarvam_service
+import auth_middleware
 
 logger = logging.getLogger(__name__)
 
@@ -35,18 +37,21 @@ class CallRequest(BaseModel):
     campaign_id: Optional[str] = None
     force_simulate: Optional[bool] = False
     language: Optional[str] = "auto"
+    user_id: Optional[str] = None
+    extra_context: Optional[dict] = None
 
 
 class BatchCallRequest(BaseModel):
     campaign_name: Optional[str] = "CSV Batch Campaign"
     calls: List[CallRequest] = Field(..., min_length=1)
     force_simulate: Optional[bool] = False
+    user_id: Optional[str] = None
 
 
 class InboundSimRequest(BaseModel):
-    customer_name: str = "Vikram Patel"
-    customer_phone: str = "+1 (555) 892-4110"
-    business_name: str = "Vyaperi X Commercial"
+    customer_name: str = "Priya Patel"
+    customer_phone: str = "+91 98200 12345"
+    business_name: str = "Vyepari CRM"
     caller_inquiry: str = "Pricing inquiry for 25 sales seats and enterprise API integration"
 
 
@@ -57,18 +62,41 @@ class VoiceSettingsPayload(BaseModel):
     twilio_account_sid: Optional[str] = None
     twilio_auth_token: Optional[str] = None
     twilio_phone_number: Optional[str] = None
-    voice_provider: Optional[str] = "11labs"
-    voice_id: Optional[str] = "sarah"
+    sarvam_api_key: Optional[str] = None
+    sarvam_speaker: Optional[str] = "priya"
+    public_webhook_url: Optional[str] = None
+    voice_provider: Optional[str] = "sarvam"
+    voice_id: Optional[str] = "priya"
+
+
+class TTSRequest(BaseModel):
+    text: str = Field(..., min_length=1, description="Text to synthesize")
+    language: Optional[str] = "hi"
+    speaker: Optional[str] = "priya"
+    pace: Optional[float] = 1.0
 
 
 # ─────────────────────────── Endpoints ─────────────────────────────────
 
 @router.post("/calls", status_code=201)
-async def create_single_call(payload: CallRequest, background_tasks: BackgroundTasks):
+async def create_single_call(
+    payload: CallRequest,
+    background_tasks: BackgroundTasks,
+    authorization: Optional[str] = Header(None),
+):
     """
     Dispatch a single voice call. Injects dynamic context (business name, customer name, why called).
     Supports live Vapi/Twilio dispatch with automatic fallback to high-fidelity simulation.
     """
+    resolved_user_id = payload.user_id
+    if not resolved_user_id and authorization:
+        try:
+            auth_user = await auth_middleware.get_current_user(authorization)
+            if auth_user:
+                resolved_user_id = auth_user.id
+        except Exception:
+            pass
+
     call_id = str(uuid.uuid4())
     call_data = {
         "id": call_id,
@@ -84,7 +112,7 @@ async def create_single_call(payload: CallRequest, background_tasks: BackgroundT
         "analysis": None,
     }
 
-    await db.create_voice_call(call_data)
+    await db.create_voice_call(call_data, user_id=resolved_user_id)
 
     if payload.force_simulate:
         background_tasks.add_task(
@@ -96,6 +124,7 @@ async def create_single_call(payload: CallRequest, background_tasks: BackgroundT
             call_reason=payload.call_reason,
             direction=payload.direction or "outbound",
             language=payload.language or "auto",
+            extra_context=payload.extra_context,
         )
     else:
         background_tasks.add_task(
@@ -106,6 +135,7 @@ async def create_single_call(payload: CallRequest, background_tasks: BackgroundT
             business_name=payload.business_name,
             call_reason=payload.call_reason,
             language=payload.language or "auto",
+            extra_context=payload.extra_context,
         )
 
     return {"success": True, "call_id": call_id, "status": "queued"}
@@ -114,13 +144,13 @@ async def create_single_call(payload: CallRequest, background_tasks: BackgroundT
 @router.post("/calls/batch", status_code=202)
 async def create_batch_calls(payload: BatchCallRequest, background_tasks: BackgroundTasks):
     """
-    Dispatch a batch of calls parsed from an uploaded CSV file.
-    Each call gets its unique context (customer name, why called, business name).
+    Dispatch a batch of calls parsed from an uploaded CSV file in order.
+    Each call gets its unique context (customer name, why called, business name, and scraped intelligence).
     """
     campaign_id = str(uuid.uuid4())
     created_call_ids = []
 
-    async def _process_batch(items: List[CallRequest], camp_id: str, force_sim: bool):
+    async def _process_batch(items: List[CallRequest], camp_id: str, force_sim: bool, fallback_user_id: Optional[str] = None):
         for item in items:
             c_id = str(uuid.uuid4())
             call_data = {
@@ -136,7 +166,7 @@ async def create_batch_calls(payload: BatchCallRequest, background_tasks: Backgr
                 "transcript": [],
                 "analysis": None,
             }
-            await db.create_voice_call(call_data)
+            await db.create_voice_call(call_data, user_id=item.user_id or fallback_user_id)
             created_call_ids.append(c_id)
 
             if force_sim:
@@ -147,6 +177,8 @@ async def create_batch_calls(payload: BatchCallRequest, background_tasks: Backgr
                     business_name=item.business_name,
                     call_reason=item.call_reason,
                     direction=item.direction or "outbound",
+                    language=item.language or "auto",
+                    extra_context=item.extra_context,
                 )
             else:
                 await voice_engine.dispatch_vapi_call(
@@ -155,14 +187,18 @@ async def create_batch_calls(payload: BatchCallRequest, background_tasks: Backgr
                     customer_phone=item.customer_phone,
                     business_name=item.business_name,
                     call_reason=item.call_reason,
+                    language=item.language or "auto",
+                    extra_context=item.extra_context,
                 )
-            await asyncio.sleep(0.5)
+            # Sequential throttle delay between outbound calls
+            await asyncio.sleep(1.5)
 
     background_tasks.add_task(
         _process_batch,
         payload.calls,
         campaign_id,
         payload.force_simulate or False,
+        payload.user_id,
     )
 
     return {
@@ -176,14 +212,26 @@ async def create_batch_calls(payload: BatchCallRequest, background_tasks: Backgr
 
 @router.get("/calls")
 async def list_calls(
+    user_id: Optional[str] = Query(None),
     direction: Optional[str] = Query(None, description="outbound | inbound | all"),
     status: Optional[str] = Query(None, description="queued | in-progress | completed | failed | all"),
     campaign_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
+    authorization: Optional[str] = Header(None),
 ):
     """List call history with optional filters and search."""
+    resolved_user_id = user_id
+    if not resolved_user_id and authorization:
+        try:
+            auth_user = await auth_middleware.get_current_user(authorization)
+            if auth_user:
+                resolved_user_id = auth_user.id
+        except Exception:
+            pass
+
     calls = await db.list_voice_calls(
+        user_id=resolved_user_id,
         direction=direction,
         status=status,
         campaign_id=campaign_id,
@@ -298,6 +346,76 @@ async def simulate_inbound_call(payload: InboundSimRequest, background_tasks: Ba
     return {"success": True, "call_id": call_id, "direction": "inbound", "status": "queued"}
 
 
+@router.post("/tts")
+async def generate_speech(payload: TTSRequest):
+    """
+    Synthesizes speech using Sarvam AI Bulbul v3 for in-browser playback.
+    Produces authentic, fluent Hindi & Gujarati native audio.
+    """
+    creds = await voice_engine.get_credentials()
+    api_key = creds.get("sarvam_api_key")
+    speaker = payload.speaker or creds.get("sarvam_speaker", "priya")
+    res = await sarvam_service.synthesize_speech(
+        text=payload.text,
+        language=payload.language,
+        speaker=speaker,
+        pace=payload.pace or 1.0,
+        api_key=api_key,
+    )
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error", "Speech synthesis failed"))
+    return res
+
+
+@router.post("/webhook/vapi/custom-voice")
+async def vapi_custom_voice_webhook(request: Request):
+    """
+    Vapi custom-voice webhook endpoint.
+    Receives voice-request from Vapi with text to synthesize,
+    synthesizes speech using Sarvam Bulbul v3, and streams raw 16-bit PCM bytes back.
+    """
+    try:
+        body = await request.json()
+        msg = body.get("message", {})
+        msg_type = msg.get("type")
+
+        # If it's a voice synthesis request
+        if msg_type == "voice-request":
+            text = msg.get("text", "")
+            call_obj = msg.get("call", {})
+            # Determine language if specified in call assistant or default to hi
+            language = "hi"
+            if call_obj:
+                assistant = call_obj.get("assistant", {})
+                first_msg = assistant.get("firstMessage", "")
+                # Quick detection from first message characters if Gujarati
+                if any(ord(c) >= 0x0A80 and ord(c) <= 0x0AFF for c in first_msg + text):
+                    language = "gu"
+                elif any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in first_msg + text):
+                    language = "hi"
+
+            creds = await voice_engine.get_credentials()
+            speaker = creds.get("sarvam_speaker", "priya")
+            api_key = creds.get("sarvam_api_key")
+
+            pcm_bytes, sample_rate = await sarvam_service.synthesize_raw_pcm(
+                text=text,
+                language=language,
+                speaker=speaker,
+                api_key=api_key,
+            )
+            if pcm_bytes:
+                return Response(content=pcm_bytes, media_type="audio/pcm")
+            else:
+                logger.error("Failed to generate PCM audio from Sarvam.")
+                return Response(status_code=500, content=b"")
+
+        return {"status": "ok"}
+    except Exception as e:
+        logger.exception(f"Error handling Vapi custom-voice request: {e}")
+        return Response(status_code=500, content=b"")
+
+
 @router.post("/webhook/vapi")
 async def vapi_webhook(request: Request):
     """
@@ -315,9 +433,20 @@ async def vapi_webhook(request: Request):
 
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
     """Retrieve aggregate statistics for dashboard metric cards."""
-    return await db.get_voice_stats()
+    resolved_user_id = user_id
+    if not resolved_user_id and authorization:
+        try:
+            auth_user = await auth_middleware.get_current_user(authorization)
+            if auth_user:
+                resolved_user_id = auth_user.id
+        except Exception:
+            pass
+    return await db.get_voice_stats(user_id=resolved_user_id)
 
 
 @router.get("/config")
@@ -332,14 +461,18 @@ async def get_config():
         "has_twilio_sid": bool(creds.get("twilio_account_sid")),
         "twilio_account_sid_masked": f"...{creds['twilio_account_sid'][-4:]}" if creds.get("twilio_account_sid") else "",
         "twilio_phone_number": creds.get("twilio_phone_number", ""),
-        "voice_provider": creds.get("voice_provider", "11labs"),
-        "voice_id": creds.get("voice_id", "sarah"),
+        "has_sarvam_key": bool(creds.get("sarvam_api_key")),
+        "sarvam_key_masked": f"...{creds['sarvam_api_key'][-4:]}" if creds.get("sarvam_api_key") else "",
+        "sarvam_speaker": creds.get("sarvam_speaker", "priya"),
+        "public_webhook_url": creds.get("public_webhook_url", ""),
+        "voice_provider": creds.get("voice_provider", "sarvam"),
+        "voice_id": creds.get("voice_id", "priya"),
     }
 
 
 @router.post("/config")
 async def save_config(payload: VoiceSettingsPayload):
-    """Save or update Vapi & Twilio telephony credentials."""
+    """Save or update Vapi, Twilio, and Sarvam telephony credentials."""
     updates = {}
     if payload.vapi_api_key is not None:
         updates["vapi_api_key"] = payload.vapi_api_key.strip()
@@ -353,10 +486,16 @@ async def save_config(payload: VoiceSettingsPayload):
         updates["twilio_auth_token"] = payload.twilio_auth_token.strip()
     if payload.twilio_phone_number is not None:
         updates["twilio_phone_number"] = payload.twilio_phone_number.strip()
+    if payload.sarvam_api_key is not None:
+        updates["sarvam_api_key"] = payload.sarvam_api_key.strip()
+    if payload.sarvam_speaker is not None:
+        updates["sarvam_speaker"] = payload.sarvam_speaker.strip()
+    if payload.public_webhook_url is not None:
+        updates["public_webhook_url"] = payload.public_webhook_url.strip()
     if payload.voice_provider is not None:
         updates["voice_provider"] = payload.voice_provider.strip()
     if payload.voice_id is not None:
         updates["voice_id"] = payload.voice_id.strip()
 
     await db.save_voice_settings(updates)
-    return {"success": True, "message": "Telephony configuration updated successfully"}
+    return {"success": True, "message": "Voice and telephony configuration updated successfully"}

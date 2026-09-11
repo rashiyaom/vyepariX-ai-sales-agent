@@ -19,13 +19,21 @@ import io
 import logging
 import os
 import re
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Ensure environment variables (.env) are loaded whether running from root or services/backend
+load_dotenv()
+_backend_env = Path(__file__).resolve().parent / ".env"
+if _backend_env.exists():
+    load_dotenv(_backend_env)
 
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────── Allowlist & Limits ─────────────────────────────
 
 MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024   # 15 MB
-MAX_FILES_PER_REQUEST = 5
+MAX_FILES_PER_REQUEST = 10
 
 ALLOWED_EXTENSIONS = {
     ".pdf", ".csv", ".xlsx", ".xls",
@@ -116,13 +124,23 @@ def extract_pdf(content_bytes: bytes, filename: str) -> str:
                     sections.append(f"\n--- Page {page_num} ---\n" + "\n".join(page_parts))
 
         result = "\n".join(sections)
-        # Limit to 8000 chars per doc to stay within token budget
-        if len(result) > 8000:
-            result = result[:8000] + "\n\n[...PDF truncated for token budget...]"
+        # Limit to 25,000 chars per doc to support comprehensive documents
+        if len(result) > 25000:
+            result = result[:25000] + "\n\n[...PDF truncated for token budget...]"
+        if result and len(result.strip()) > 50:
+            return result
+        # If pdfplumber returned empty or sparse text (e.g. scanned PDF), try Gemini native PDF comprehension
+        gemini_result = _extract_pdf_gemini(content_bytes, filename)
+        if gemini_result:
+            return gemini_result
         return result or "(PDF contained no extractable text)"
     except Exception as e:
         logger.warning(f"pdfplumber failed on {filename}: {e}. Trying pypdf fallback.")
-        return _extract_pdf_pypdf(content_bytes, filename)
+        pypdf_res = _extract_pdf_pypdf(content_bytes, filename)
+        if pypdf_res and not pypdf_res.startswith("(Could not"):
+            return pypdf_res
+        gemini_res = _extract_pdf_gemini(content_bytes, filename)
+        return gemini_res if gemini_res else pypdf_res
 
 
 def _extract_pdf_pypdf(content_bytes: bytes, filename: str) -> str:
@@ -136,12 +154,40 @@ def _extract_pdf_pypdf(content_bytes: bytes, filename: str) -> str:
             if text.strip():
                 pages_text.append(f"--- Page {i} ---\n{text.strip()}")
         result = "\n".join(pages_text)
-        if len(result) > 8000:
-            result = result[:8000] + "\n[...PDF truncated...]"
-        return result or "(PDF contained no extractable text)"
+        if len(result) > 25000:
+            result = result[:25000] + "\n[...PDF truncated...]"
+        if result and len(result.strip()) > 50:
+            return result
+        return _extract_pdf_gemini(content_bytes, filename) or result or "(PDF contained no extractable text)"
     except Exception as e:
         logger.error(f"pypdf fallback also failed for {filename}: {e}")
-        return f"(Could not extract text from PDF: {e})"
+        return _extract_pdf_gemini(content_bytes, filename) or f"(Could not extract text from PDF: {e})"
+
+
+def _extract_pdf_gemini(content_bytes: bytes, filename: str) -> str:
+    """Multimodal PDF transcription using Gemini 2.5 Flash for scanned / image-heavy PDFs."""
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    if not gemini_key:
+        return ""
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=gemini_key)
+        part = types.Part.from_bytes(data=content_bytes, mime_type="application/pdf")
+        prompt = (
+            f"You are a commercial intelligence auditor analyzing an uploaded business PDF: {filename}. "
+            "Extract ALL text, financial tables, metrics, bullet points, customer names, products, and operational facts. "
+            "Transcribe comprehensively into structured Markdown with headings and tables. Never summarize or omit details."
+        )
+        resp = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[part, prompt],
+        )
+        if resp.text and len(resp.text.strip()) > 5:
+            return f"**Visual PDF Transcription ({filename}):**\n\n{resp.text.strip()}"
+    except Exception as e:
+        logger.warning(f"Gemini PDF extraction failed for {filename}: {e}")
+    return ""
 
 
 # ─────────────────────────── Spreadsheet Extraction ─────────────────────────
@@ -165,8 +211,8 @@ def extract_spreadsheet(content_bytes: bytes, filename: str, ext: str) -> str:
             df = df.dropna(how="all").dropna(axis=1, how="all")
             if df.empty:
                 continue
-            # Limit rows to avoid massive token use
-            row_limit = 50
+            # Up to 100 rows per sheet
+            row_limit = 100
             truncated = len(df) > row_limit
             df = df.head(row_limit)
 
@@ -175,8 +221,8 @@ def extract_spreadsheet(content_bytes: bytes, filename: str, ext: str) -> str:
             sections.append(f"{header}\n\n{md}")
 
         result = "\n\n".join(sections)
-        if len(result) > 6000:
-            result = result[:6000] + "\n\n[...spreadsheet truncated for token budget...]"
+        if len(result) > 20000:
+            result = result[:20000] + "\n\n[...spreadsheet truncated for token budget...]"
         return result or "(Spreadsheet contained no data)"
     except Exception as e:
         logger.error(f"Spreadsheet extraction failed for {filename}: {e}")
@@ -190,8 +236,8 @@ def extract_text_file(content_bytes: bytes, filename: str, ext: str) -> str:
     if ext in TEXT_EXTENSIONS:
         try:
             text = content_bytes.decode("utf-8", errors="replace")
-            if len(text) > 6000:
-                text = text[:6000] + "\n[...truncated...]"
+            if len(text) > 20000:
+                text = text[:20000] + "\n[...truncated...]"
             return text
         except Exception as e:
             return f"(Could not decode text file: {e})"
@@ -200,8 +246,8 @@ def extract_text_file(content_bytes: bytes, filename: str, ext: str) -> str:
         try:
             import docx2txt  # type: ignore
             text = docx2txt.process(io.BytesIO(content_bytes))
-            if len(text) > 6000:
-                text = text[:6000] + "\n[...truncated...]"
+            if len(text) > 20000:
+                text = text[:20000] + "\n[...truncated...]"
             return text or "(DOCX contained no text)"
         except ImportError:
             # Try python-docx
@@ -209,8 +255,8 @@ def extract_text_file(content_bytes: bytes, filename: str, ext: str) -> str:
                 from docx import Document  # type: ignore
                 doc = Document(io.BytesIO(content_bytes))
                 text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-                if len(text) > 6000:
-                    text = text[:6000] + "\n[...truncated...]"
+                if len(text) > 20000:
+                    text = text[:20000] + "\n[...truncated...]"
                 return text or "(DOCX contained no text)"
             except Exception:
                 return "(DOCX parsing unavailable — install python-docx or docx2txt)"
@@ -220,59 +266,69 @@ def extract_text_file(content_bytes: bytes, filename: str, ext: str) -> str:
 
 # ─────────────────────────── Image Extraction (Groq Vision) ─────────────────
 
-def extract_image_description(content_bytes: bytes, filename: str, groq_api_key: str) -> str:
+def extract_image_description(content_bytes: bytes, filename: str, groq_api_key: str = "") -> str:
     """
-    Use Groq vision model to extract chart data, trends, and annotations from images.
-    Falls back to a filename-only placeholder if vision model is unavailable.
+    Multimodal visual extraction:
+    Uses Gemini 2.5 Flash to comprehensively transcribe text, graphs, metrics,
+    tables, customer details, and numbers from PNG, JPG, JPEG, WEBP.
+    Falls back to Groq vision if Gemini is not configured.
     """
     import base64
     ext = os.path.splitext(filename.lower())[1].lstrip(".")
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext, "image/png")
-    b64 = base64.b64encode(content_bytes).decode()
 
-    VISION_MODELS = [
-        "meta-llama/llama-4-scout-17b-16e-instruct",
-        "meta-llama/llama-4-maverick-17b-128e-instruct",
-    ]
+    # Tier 1: Gemini 2.5 Flash multimodal vision
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    if gemini_key:
+        try:
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=gemini_key)
+            part = types.Part.from_bytes(data=content_bytes, mime_type=mime)
+            prompt = (
+                f"You are a rigorous commercial auditor analyzing an uploaded business image: {filename}. "
+                "Extract ALL readable text, metrics, numbers, tables, column headers, axis values, dates, customer names, "
+                "financial figures, and operational facts from this image. "
+                "Format cleanly in Markdown with tables and bullet points. Never hallucinate — transcribe strictly what is visible."
+            )
+            resp = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[part, prompt],
+            )
+            if resp.text and len(resp.text.strip()) > 5:
+                return f"**Visual Intelligence Extraction for {filename}:**\n\n{resp.text.strip()}"
+        except Exception as e:
+            logger.warning(f"Gemini vision failed for {filename}: {e}. Trying fallback...")
 
-    vision_prompt = (
-        "You are analyzing a business chart, graph, screenshot, or document image. "
-        "Extract ALL visible data: axis labels, data point values, legend items, title, annotations, trend lines, and key numbers. "
-        "Format as structured bullet points. Do NOT invent values — only report what is explicitly visible. "
-        "If the image is not a chart, describe what it shows (e.g. product photo, org chart, pricing table screenshot)."
-    )
+    # Tier 2: Groq Vision Fallback (if configured)
+    if groq_api_key:
+        try:
+            from groq import Groq
+            client = Groq(api_key=groq_api_key)
+            b64 = base64.b64encode(content_bytes).decode()
+            for model in ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]:
+                try:
+                    resp = client.chat.completions.create(
+                        model=model,
+                        messages=[{
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": f"Extract all visible text and numbers from {filename}."},
+                                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+                            ],
+                        }],
+                        temperature=0.1,
+                        max_tokens=1000,
+                    )
+                    text = resp.choices[0].message.content or ""
+                    if text.strip():
+                        return f"**Visual Analysis of {filename}:**\n\n{text.strip()}"
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"Groq vision fallback failed for {filename}: {e}")
 
-    try:
-        from groq import Groq  # type: ignore
-        client = Groq(api_key=groq_api_key)
-        for model in VISION_MODELS:
-            try:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[{
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": vision_prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-                        ],
-                    }],
-                    temperature=0.1,
-                    max_tokens=800,
-                )
-                text = resp.choices[0].message.content or ""
-                return f"**Visual Analysis of {filename}:**\n{text.strip()}"
-            except Exception as e:
-                logger.warning(f"Vision model {model} failed: {e}")
-                continue
-    except Exception as e:
-        logger.warning(f"Groq vision unavailable: {e}")
-
-    # Graceful fallback — at least record the filename
-    return (
-        f"**Image uploaded: {filename}**\n"
-        "(Vision model unavailable on this Groq tier — image metadata recorded but content not extractable. "
-        "For chart analysis, consider also uploading the underlying data as a CSV.)"
-    )
+    return f"(No readable text or quantitative data detected in {filename})"
 
 
 # ─────────────────────────── Main Entry Point ────────────────────────────────

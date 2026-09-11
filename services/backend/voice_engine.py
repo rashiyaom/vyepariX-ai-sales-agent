@@ -88,8 +88,11 @@ async def get_credentials() -> dict:
         "twilio_account_sid": db_settings.get("twilio_account_sid") or os.getenv("TWILIO_ACCOUNT_SID", ""),
         "twilio_auth_token": db_settings.get("twilio_auth_token") or os.getenv("TWILIO_AUTH_TOKEN", ""),
         "twilio_phone_number": db_settings.get("twilio_phone_number") or os.getenv("TWILIO_PHONE_NUMBER", ""),
-        "voice_provider": db_settings.get("voice_provider") or os.getenv("VOICE_PROVIDER", "11labs"),
-        "voice_id": db_settings.get("voice_id") or os.getenv("VOICE_ID", "sarah"),
+        "voice_provider": db_settings.get("voice_provider") or os.getenv("VOICE_PROVIDER", "sarvam"),
+        "voice_id": db_settings.get("voice_id") or os.getenv("VOICE_ID", "priya"),
+        "sarvam_api_key": db_settings.get("sarvam_api_key") or os.getenv("SARVAM_API_KEY", ""),
+        "sarvam_speaker": db_settings.get("sarvam_speaker") or os.getenv("SARVAM_SPEAKER", "priya"),
+        "public_webhook_url": db_settings.get("public_webhook_url") or os.getenv("PUBLIC_WEBHOOK_URL", ""),
     }
 
 
@@ -238,14 +241,82 @@ async def dispatch_vapi_call(
         lang_instruction = "IMPORTANT LANGUAGE INSTRUCTION: You must automatically detect whether the customer is speaking English, Hindi, or Gujarati, and seamlessly switch to respond fluently in their language."
         first_message = f"Hello {customer_name}, this is Sarah calling from {business_name} regarding {call_reason}. Do you have a brief moment to connect?"
 
+    company_knowledge_block = ""
+    if extra_context:
+        summary = extra_context.get("summary") or extra_context.get("one_line_summary") or extra_context.get("business_description") or ""
+        value_props = extra_context.get("value_propositions") or []
+        products = extra_context.get("products_services") or []
+        pain_points = extra_context.get("pain_points_solved") or []
+        
+        vp_text = "; ".join(str(v) for v in value_props[:3]) if isinstance(value_props, list) else str(value_props)
+        prod_text = "; ".join(str(p) for p in products[:4]) if isinstance(products, list) else str(products)
+        pp_text = "; ".join(str(p) for p in pain_points[:3]) if isinstance(pain_points, list) else str(pain_points)
+
+        k_lines = []
+        if summary:
+            k_lines.append(f"Business Overview: {summary}")
+        if prod_text:
+            k_lines.append(f"Key Offerings: {prod_text}")
+        if vp_text:
+            k_lines.append(f"Unique Advantages: {vp_text}")
+        if pp_text:
+            k_lines.append(f"Client Pain Points Solved: {pp_text}")
+
+        if k_lines:
+            company_knowledge_block = "\n\nBUSINESS KNOWLEDGE (from Scraped Intelligence):\n" + "\n".join(f"- {line}" for line in k_lines)
+
     system_prompt = (
         f"You are a professional, articulate AI Sales Development Representative calling on behalf of {business_name}."
         f" You are speaking with {customer_name}. The reason for this call is: {call_reason}."
         f" {lang_instruction}"
-        f" Be helpful, courteous, and consultative. Listen actively to what they say. Keep your spoken replies concise"
-        f" (1 to 2 sentences per turn) so it feels like a natural two-way conversation. Aim to address their questions"
-        f" and secure interest in a demo or follow-up briefing."
+        f"{company_knowledge_block}"
+        f"\n\nInstructions:"
+        f" - Be helpful, courteous, and consultative. Listen actively to what they say."
+        f" - Use the business knowledge above to answer questions accurately and naturally without sounding robotic."
+        f" - Keep your spoken replies concise (1 to 2 sentences per turn) so it feels like a natural two-way human conversation."
+        f" - Aim to address their questions and secure interest in a demo or follow-up briefing."
     )
+
+    provider = creds.get("voice_provider", "sarvam")
+    webhook_url = creds.get("public_webhook_url", "").strip()
+
+    if provider == "sarvam" and webhook_url:
+        voice_block = {
+            "provider": "custom-voice",
+            "server": {
+                "url": f"{webhook_url.rstrip('/')}/webhook/vapi/custom-voice",
+            },
+        }
+    elif provider == "sarvam":
+        logger.info("Sarvam active. Note: for cloud Vapi live phone calls, configure PUBLIC_WEBHOOK_URL in Voice Settings.")
+        voice_block = {
+            "provider": "11labs",
+            "voiceId": "sarah",
+        }
+    elif provider == "cartesia":
+        v_id = creds.get("voice_id", "sonic-english")
+        if v_id in ("priya", "sarah", ""):
+            v_id = "sonic-english"
+        voice_block = {
+            "provider": "cartesia",
+            "voiceId": v_id,
+        }
+    elif provider == "deepgram":
+        v_id = creds.get("voice_id", "aura-asteria-en")
+        if v_id in ("priya", "sarah", ""):
+            v_id = "aura-asteria-en"
+        voice_block = {
+            "provider": "deepgram",
+            "voiceId": v_id,
+        }
+    else: # 11labs or fallback
+        v_id = creds.get("voice_id", "sarah")
+        if v_id in ("priya", ""):
+            v_id = "sarah"
+        voice_block = {
+            "provider": "11labs",
+            "voiceId": v_id,
+        }
 
     payload = {
         "phoneNumberId": phone_number_id,
@@ -279,10 +350,7 @@ async def dispatch_vapi_call(
                     {"role": "system", "content": system_prompt}
                 ],
             },
-            "voice": {
-                "provider": creds.get("voice_provider", "11labs"),
-                "voiceId": creds.get("voice_id", "sarah"),
-            },
+            "voice": voice_block,
         },
     }
 

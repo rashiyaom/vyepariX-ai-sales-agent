@@ -128,6 +128,53 @@ async def update_analysis(report_id: str, analysis: dict):
         logger.warning(f"Error updating analysis in Supabase: {e}")
 
 
+def _ensure_visual_intelligence(report: dict) -> tuple[dict, bool]:
+    """
+    Ensures strict adherence to Option A Ground Truth Policy:
+    - For website-inferred analyses, growth_forecast and conversion_funnel are strictly empty
+      so the dashboard renders the Option A prompt & Option B interactive calibration card.
+    - Only timeline_roadmap (tactical execution plan) and commercial catalog highlights are kept.
+    """
+    analysis = report.get("analysis")
+    if not analysis or not isinstance(analysis, dict):
+        return report, False
+
+    needs_update = False
+    is_website_mode = analysis.get("data_source_mode") != "uploaded_file"
+
+    if is_website_mode:
+        # Enforce Option A: strictly clear any simulated curves for website-only analyses
+        if analysis.get("growth_forecast"):
+            analysis["growth_forecast"] = []
+            needs_update = True
+        if analysis.get("conversion_funnel"):
+            analysis["conversion_funnel"] = []
+            needs_update = True
+
+    if not analysis.get("timeline_roadmap"):
+        try:
+            from data_engine import synthesize_website_figures
+            company = analysis.get("company_name") or "Target Company"
+            ind = analysis.get("industry") or "B2B Commercial Enterprise"
+            opp = analysis.get("opportunity_score") or 85
+            prods = analysis.get("products_services") or []
+
+            synth = synthesize_website_figures(
+                company_name=company,
+                industry=ind,
+                opportunity_score=opp,
+                products=prods,
+            )
+            if synth.get("timeline_roadmap"):
+                analysis["timeline_roadmap"] = synth["timeline_roadmap"]
+                needs_update = True
+        except Exception as e:
+            logger.warning(f"Error ensuring timeline for report {report.get('id')}: {e}")
+
+    report["analysis"] = analysis
+    return report, needs_update
+
+
 async def get_report(report_id: str) -> Optional[dict]:
     """Fetch single intelligence report by ID from Supabase."""
     client = get_supabase()
@@ -135,24 +182,37 @@ async def get_report(report_id: str) -> Optional[dict]:
         res = await asyncio.to_thread(
             client.table("reports").select("*").eq("id", report_id).maybe_single().execute
         )
-        return res.data if res else None
+        if not res or not res.data:
+            return None
+        report = res.data
+        report, updated = _ensure_visual_intelligence(report)
+        if updated:
+            # Persist the enriched visual arrays back so future calls are instant
+            asyncio.create_task(update_analysis(report_id, report["analysis"]))
+        return report
     except Exception as e:
         logger.warning(f"Error fetching report {report_id} from Supabase: {e}")
         return None
 
 
-async def list_reports(limit: int = 20) -> List[dict]:
-    """List recent intelligence reports from Supabase."""
+async def list_reports(user_id: Optional[str] = None, limit: int = 50) -> List[dict]:
+    """List recent intelligence reports from Supabase with user association and fallback."""
     client = get_supabase()
     try:
+        query = client.table("reports").select("id, status, input_urls, analysis, raw_profile, created_at, updated_at, user_id")
+        if user_id:
+            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
         res = await asyncio.to_thread(
-            client.table("reports")
-            .select("id, status, input_urls, created_at, updated_at")
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute
+            query.order("created_at", desc=True).limit(limit).execute
         )
-        return res.data or []
+        raw_list = res.data or []
+        enriched_list = []
+        for r in raw_list:
+            enriched, updated = _ensure_visual_intelligence(r)
+            if updated and r.get("id"):
+                asyncio.create_task(update_analysis(r["id"], enriched["analysis"]))
+            enriched_list.append(enriched)
+        return enriched_list
     except Exception as e:
         logger.warning(f"Error listing reports from Supabase: {e}")
         return []
@@ -246,15 +306,18 @@ async def get_voice_call(call_id: str) -> Optional[dict]:
 
 
 async def list_voice_calls(
+    user_id: Optional[str] = None,
     direction: Optional[str] = None,
     status: Optional[str] = None,
     campaign_id: Optional[str] = None,
     limit: int = 100,
 ) -> List[dict]:
-    """List recent voice calls with optional filtering from Supabase."""
+    """List recent voice calls with optional filtering and user scoping from Supabase."""
     client = get_supabase()
     try:
         query = client.table("voice_calls").select("*")
+        if user_id:
+            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
         if direction and direction != "all":
             query = query.eq("direction", direction)
         if status and status != "all":
@@ -283,7 +346,7 @@ async def delete_voice_call(call_id: str) -> bool:
         return False
 
 
-async def get_voice_stats() -> dict:
+async def get_voice_stats(user_id: Optional[str] = None) -> dict:
     """Compute aggregate call stats for dashboard KPI cards from Supabase."""
     client = get_supabase()
     stats = {
@@ -299,11 +362,10 @@ async def get_voice_stats() -> dict:
     }
 
     try:
-        res = await asyncio.to_thread(
-            client.table("voice_calls")
-            .select("direction, status, duration_seconds, analysis")
-            .execute
-        )
+        query = client.table("voice_calls").select("direction, status, duration_seconds, analysis, user_id")
+        if user_id:
+            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
+        res = await asyncio.to_thread(query.execute)
         rows = res.data or []
         stats["total_calls"] = len(rows)
 

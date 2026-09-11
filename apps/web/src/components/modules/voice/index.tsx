@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/lib/auth";
 import {
   Sparkles,
   PhoneCall,
@@ -99,8 +100,27 @@ export function VoiceFleetModule({
   industry = "",
   targetLead,
 }: VoiceFleetModuleProps) {
+  const { user, session } = useAuth();
   const effectiveCompanyName = analysis?.company_name || companyName || "Vyaperi Enterprise";
   const effectiveIndustry = analysis?.industry || industry || "B2B Technology";
+
+  const extraContext = analysis
+    ? {
+        summary: analysis.one_line_summary || analysis.executive_summary || "",
+        value_propositions: analysis.value_propositions || [],
+        products_services: analysis.products_services || [],
+        pain_points_solved: analysis.pain_points_solved || [],
+        target_personas: analysis.target_buyer_personas || [],
+      }
+    : undefined;
+
+  const getAuthHeaders = () => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (session?.access_token) {
+      headers["Authorization"] = `Bearer ${session.access_token}`;
+    }
+    return headers;
+  };
 
   // Tab State: "logs" | "csv" | "live" | "inbound" | "settings"
   const [activeTab, setActiveTab] = useState<"logs" | "csv" | "live" | "inbound" | "settings">("logs");
@@ -128,7 +148,11 @@ export function VoiceFleetModule({
   const handleSelectCall = async (callRecord: VoiceCallRecord) => {
     setSelectedCall(callRecord);
     try {
-      const res = await fetch(`${API_BASE}/api/voice/calls/${callRecord.id}`);
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+      const res = await fetch(`${API_BASE}/api/voice/calls/${callRecord.id}`, { headers });
       if (res.ok) {
         const fullCall = await res.json();
         setSelectedCall(fullCall);
@@ -265,19 +289,100 @@ export function VoiceFleetModule({
     twilio_account_sid: "",
     twilio_auth_token: "",
     twilio_phone_number: "",
-    voice_provider: "11labs",
-    voice_id: "sarah",
+    sarvam_api_key: "",
+    sarvam_speaker: "priya",
+    public_webhook_url: "",
+    voice_provider: "sarvam",
+    voice_id: "priya",
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSavedMessage, setSettingsSavedMessage] = useState(false);
+
+  // Sarvam AI Audio Playback State
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const playSarvamAudio = async (text: string, lang: string = "hi", id?: string) => {
+    try {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+      if (id) setPlayingAudioId(id);
+      else setPreviewPlaying(lang);
+
+      let targetLang = lang;
+      if (/[\u0A80-\u0AFF]/.test(text)) {
+        targetLang = "gu";
+      } else if (/[\u0900-\u097F]/.test(text)) {
+        targetLang = "hi";
+      }
+
+      const res = await fetch(`${API_BASE}/api/voice/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          language: targetLang,
+          speaker: settings.sarvam_speaker || "priya",
+        }),
+      });
+
+      if (!res.ok) {
+        if ("speechSynthesis" in window) {
+          const synth = window.speechSynthesis;
+          synth.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = targetLang === "gu" ? "gu-IN" : "hi-IN";
+          utterance.onend = () => {
+            setPlayingAudioId(null);
+            setPreviewPlaying(null);
+          };
+          utterance.onerror = () => {
+            setPlayingAudioId(null);
+            setPreviewPlaying(null);
+          };
+          synth.speak(utterance);
+          return;
+        }
+        throw new Error("TTS generation failed");
+      }
+
+      const data = await res.json();
+      if (data.audio_b64) {
+        const audio = new Audio(`data:audio/wav;base64,${data.audio_b64}`);
+        activeAudioRef.current = audio;
+        audio.onended = () => {
+          setPlayingAudioId(null);
+          setPreviewPlaying(null);
+        };
+        audio.onerror = () => {
+          setPlayingAudioId(null);
+          setPreviewPlaying(null);
+        };
+        await audio.play();
+      }
+    } catch (e) {
+      console.error("Failed to synthesize or play Sarvam speech:", e);
+      setPlayingAudioId(null);
+      setPreviewPlaying(null);
+    }
+  };
 
   // Load Calls & Stats
   const fetchCallsAndStats = async () => {
     try {
       setLoadingCalls(true);
+      const userParam = user?.id ? `&user_id=${user.id}` : "";
+      const statsUserParam = user?.id ? `?user_id=${user.id}` : "";
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
       const [callsRes, statsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/voice/calls?limit=100`),
-        fetch(`${API_BASE}/api/voice/stats`),
+        fetch(`${API_BASE}/api/voice/calls?limit=100${userParam}`, { headers }),
+        fetch(`${API_BASE}/api/voice/stats${statsUserParam}`, { headers }),
       ]);
 
       if (callsRes.ok) {
@@ -301,7 +406,7 @@ export function VoiceFleetModule({
       fetchCallsAndStats();
     }, 8000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   // Update business name if companyName changes
   useEffect(() => {
@@ -341,7 +446,11 @@ export function VoiceFleetModule({
   // Load Settings
   const fetchSettings = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/voice/config`);
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+      const res = await fetch(`${API_BASE}/api/voice/config`, { headers });
       if (res.ok) {
         const data = await res.json();
         setSettings((prev) => ({
@@ -349,8 +458,11 @@ export function VoiceFleetModule({
           vapi_public_key: data.vapi_public_key || (import.meta.env["VITE_VAPI_PUBLIC_KEY"] as string) || "",
           vapi_phone_number_id: data.vapi_phone_number_id || "",
           twilio_phone_number: data.twilio_phone_number || "",
-          voice_provider: data.voice_provider || "11labs",
-          voice_id: data.voice_id || "sarah",
+          sarvam_api_key: data.sarvam_key_masked || (import.meta.env["VITE_SARVAM_API_KEY"] as string) || "",
+          sarvam_speaker: data.sarvam_speaker || "priya",
+          public_webhook_url: data.public_webhook_url || "",
+          voice_provider: data.voice_provider || "sarvam",
+          voice_id: data.voice_id || "priya",
         }));
       }
     } catch (err) {
@@ -360,7 +472,7 @@ export function VoiceFleetModule({
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [user]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -368,8 +480,11 @@ export function VoiceFleetModule({
     try {
       const res = await fetch(`${API_BASE}/api/voice/config`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          ...settings,
+          user_id: user?.id,
+        }),
       });
       if (res.ok) {
         setSettingsSavedMessage(true);
@@ -537,19 +652,22 @@ export function VoiceFleetModule({
     try {
       const payload = {
         campaign_name: csvFile ? csvFile.name.replace(".csv", "") : "CSV Outreach Fleet",
+        user_id: user?.id,
         calls: selected.map((c) => ({
           customer_name: c.customer_name,
           customer_phone: c.customer_phone,
           business_name: c.business_name,
           call_reason: c.call_reason,
           direction: "outbound",
+          user_id: user?.id,
+          extra_context: extraContext,
         })),
         force_simulate: false,
       };
 
       const res = await fetch(`${API_BASE}/api/voice/calls/batch`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -579,7 +697,7 @@ export function VoiceFleetModule({
     try {
       const res = await fetch(`${API_BASE}/api/voice/calls`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           customer_name: contact.customer_name,
           customer_phone: contact.customer_phone,
@@ -587,6 +705,8 @@ export function VoiceFleetModule({
           call_reason: contact.call_reason,
           direction: "outbound",
           force_simulate: false,
+          user_id: user?.id,
+          extra_context: extraContext,
         }),
       });
 
@@ -698,6 +818,7 @@ export function VoiceFleetModule({
         timestamp: "00:04",
       };
       setLiveCallTurns([greeting]);
+      playSarvamAudio(initialGreetingText, liveCallLanguage, "live-0");
     } else {
       setLiveCallTurns([]);
     }
@@ -705,7 +826,7 @@ export function VoiceFleetModule({
     try {
       const res = await fetch(`${API_BASE}/api/voice/calls`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           customer_name: finalName,
           customer_phone: finalPhone,
@@ -714,6 +835,8 @@ export function VoiceFleetModule({
           direction: "outbound",
           force_simulate: !isRealCall,
           language: liveCallLanguage,
+          user_id: user?.id,
+          extra_context: extraContext,
         }),
       });
 
@@ -731,7 +854,9 @@ export function VoiceFleetModule({
         liveCallPollRef.current = setInterval(async () => {
           attempts++;
           try {
-            const detailRes = await fetch(`${API_BASE}/api/voice/calls/${callId}`);
+            const detailRes = await fetch(`${API_BASE}/api/voice/calls/${callId}`, {
+              headers: getAuthHeaders(),
+            });
             if (detailRes.ok) {
               const detailData: VoiceCallRecord = await detailRes.json();
 
@@ -749,53 +874,33 @@ export function VoiceFleetModule({
               if (detailData.transcript && detailData.transcript.length > 0) {
                 setLiveCallTurns(detailData.transcript);
               }
+              setLiveCallRecord(detailData);
 
-              if (detailData.status === "completed" || detailData.status === "ended") {
-                if (liveCallPollRef.current) {
-                  clearInterval(liveCallPollRef.current);
-                  liveCallPollRef.current = null;
-                }
-                activeCallIdRef.current = null;
-                setLiveCallTurns(detailData.transcript || []);
-                setLiveCallRecord(detailData);
-                setLiveCallActive(false);
-                setLiveCallStatusMessage("✓ Call completed successfully · Groq AI analysis ready");
-                fetchCallsAndStats();
-              } else if (
-                detailData.status === "failed" ||
-                detailData.status === "no-answer" ||
-                detailData.status === "busy" ||
-                detailData.status === "canceled"
-              ) {
-                if (liveCallPollRef.current) {
-                  clearInterval(liveCallPollRef.current);
-                  liveCallPollRef.current = null;
-                }
-                activeCallIdRef.current = null;
-                setLiveCallTurns(detailData.transcript || []);
-                setLiveCallRecord(detailData);
-                setLiveCallActive(false);
-                const isNoAnswer = detailData.status === "no-answer" || detailData.status === "busy";
-                const errMsg = isNoAnswer
-                  ? "📞 Call ended / recipient declined or did not answer."
-                  : detailData.error_message || "Call ended or could not connect to carrier.";
-                setLiveCallStatusMessage(`✕ ${errMsg}`);
-                if (detailData.status === "failed") {
-                  setLiveCallError(errMsg);
-                }
-                fetchCallsAndStats();
-              } else if (attempts >= maxAttempts) {
+              // Check if call finished
+              const isFinished = ["completed", "ended", "failed", "no-answer", "busy", "canceled"].includes(
+                detailData.status
+              );
+
+              if (isFinished || attempts >= maxAttempts) {
                 if (liveCallPollRef.current) {
                   clearInterval(liveCallPollRef.current);
                   liveCallPollRef.current = null;
                 }
                 activeCallIdRef.current = null;
                 setLiveCallActive(false);
-                setLiveCallStatusMessage("Call monitoring complete. Record saved in call logs.");
+
+                if (detailData.status === "completed" || detailData.status === "ended") {
+                  setLiveCallStatusMessage("✓ Live call finished successfully! AI Call Intelligence Analysis ready.");
+                } else if (detailData.status === "failed") {
+                  setLiveCallStatusMessage(`Call ended with status: ${detailData.status}. ${detailData.error_message || ""}`);
+                } else {
+                  setLiveCallStatusMessage(`Call ended (${detailData.status}).`);
+                }
                 fetchCallsAndStats();
               }
             }
-          } catch {
+          } catch (pollErr) {
+            console.error("Polling live call error:", pollErr);
             if (attempts >= maxAttempts) {
               if (liveCallPollRef.current) {
                 clearInterval(liveCallPollRef.current);
@@ -831,18 +936,21 @@ export function VoiceFleetModule({
     try {
       const res = await fetch(`${API_BASE}/api/voice/simulate-inbound`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           customer_name: custName,
           customer_phone: custPhone,
           business_name: bizName,
           caller_inquiry: callerInquiry,
+          user_id: user?.id,
         }),
       });
       if (res.ok) {
         const data = await res.json();
         setTimeout(async () => {
-          const detailRes = await fetch(`${API_BASE}/api/voice/calls/${data.call_id}`);
+          const detailRes = await fetch(`${API_BASE}/api/voice/calls/${data.call_id}`, {
+            headers: getAuthHeaders(),
+          });
           if (detailRes.ok) {
             const callObj = await detailRes.json();
             setSelectedCall(callObj);
@@ -865,6 +973,7 @@ export function VoiceFleetModule({
     try {
       const res = await fetch(`${API_BASE}/api/voice/calls/${callId}/analyze`, {
         method: "POST",
+        headers: getAuthHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
@@ -887,6 +996,7 @@ export function VoiceFleetModule({
     try {
       const res = await fetch(`${API_BASE}/api/voice/calls/${callId}`, {
         method: "DELETE",
+        headers: getAuthHeaders(),
       });
       if (res.ok) {
         setCalls((prev) => prev.filter((c) => c.id !== callId));
@@ -1202,30 +1312,6 @@ export function VoiceFleetModule({
                     className="border border-lime bg-lime text-ink px-3 py-1.5 label-mono text-xs font-bold hover:bg-lime/90"
                   >
                     Test Live Call
-                  </button>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await fetch(`${API_BASE}/api/voice/calls`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            customer_name: "Rohan Deshmukh (Sample)",
-                            customer_phone: "+1 (555) 902-3341",
-                            business_name: effectiveCompanyName,
-                            call_reason: "[Sample Call] Follow-up on high-intent buyer signal from Lead Radar regarding automated SDR calling",
-                            direction: "outbound",
-                            force_simulate: true,
-                          }),
-                        });
-                        setTimeout(() => fetchCallsAndStats(), 1500);
-                      } catch (err) {
-                        console.error("Failed to generate sample call:", err);
-                      }
-                    }}
-                    className="border border-ink/30 bg-secondary/40 text-ink px-3 py-1.5 label-mono text-xs font-bold hover:bg-secondary flex items-center gap-1.5"
-                  >
-                    <Sparkles className="w-3 h-3 text-violet" /> Restore 1 Demo Call (Sample)
                   </button>
                 </div>
               </div>
@@ -1643,22 +1729,6 @@ export function VoiceFleetModule({
             <div className="space-y-3 font-mono text-xs">
               <div className="flex items-center justify-between pb-1">
                 <span className="text-muted-foreground text-[10px] uppercase font-bold">Call Configuration</span>
-                {liveCallMode === "demo" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLiveCallForm({
-                        customer_name: "Rahul Sharma (Sample Lead)",
-                        customer_phone: "+1 (555) 019-2834",
-                        business_name: effectiveCompanyName,
-                        call_reason: "[Sample] Follow-up on enterprise voice fleet demonstration",
-                      });
-                    }}
-                    className="label-mono text-[10px] text-violet hover:underline flex items-center gap-1"
-                  >
-                    <Sparkles className="w-3 h-3" /> Fill 1 Demo Lead (Sample)
-                  </button>
-                )}
               </div>
 
               {/* Language Selection */}
@@ -1685,7 +1755,7 @@ export function VoiceFleetModule({
                 </label>
                 <input
                   type="text"
-                  placeholder={liveCallMode === "real" ? "e.g. Mukesh Patel" : "e.g. Rahul Sharma (or click Fill Demo Lead above)"}
+                  placeholder="e.g. Contact or Buyer Name"
                   value={liveCallForm.customer_name}
                   onChange={(e) => setLiveCallForm({ ...liveCallForm, customer_name: e.target.value })}
                   className="w-full border border-ink/30 bg-paper px-3 py-2 text-ink placeholder:text-muted-foreground/60 focus:outline-none focus:border-violet"
@@ -1712,7 +1782,7 @@ export function VoiceFleetModule({
                 <div className="relative flex items-center border border-ink/40 bg-paper focus-within:border-violet focus-within:ring-1 focus-within:ring-violet">
                   <input
                     type="text"
-                    placeholder={liveCallMode === "real" ? "+91 97276 62885" : "+1 (555) 019-2834"}
+                    placeholder="+91 98765 43210"
                     value={liveCallForm.customer_phone}
                     onChange={(e) => setLiveCallForm({ ...liveCallForm, customer_phone: e.target.value })}
                     className="w-full bg-transparent px-3 py-2.5 font-mono text-base tracking-wider font-bold text-ink placeholder:text-muted-foreground/40 placeholder:font-normal focus:outline-none"
@@ -1973,7 +2043,22 @@ export function VoiceFleetModule({
                             </>
                           )}
                         </span>
-                        <span className="font-mono text-muted-foreground text-[9px]">{turn.timestamp}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => playSarvamAudio(turn.message, liveCallLanguage, `live-${i}`)}
+                            className="border border-ink/20 px-1.5 py-0.5 text-[9px] hover:bg-lime/20 flex items-center gap-1 text-ink transition-colors font-mono font-bold"
+                            title="Listen in Native Indic Voice (Sarvam AI)"
+                          >
+                            {playingAudioId === `live-${i}` ? (
+                              <RefreshCw className="w-2.5 h-2.5 animate-spin text-lime-700 dark:text-lime" />
+                            ) : (
+                              <Volume2 className="w-2.5 h-2.5 text-lime-700 dark:text-lime" />
+                            )}
+                            Hear Voice
+                          </button>
+                          <span className="font-mono text-muted-foreground text-[9px]">{turn.timestamp}</span>
+                        </div>
                       </div>
                       <p className="leading-relaxed">{turn.message}</p>
                     </div>
@@ -2021,20 +2106,6 @@ export function VoiceFleetModule({
           <form onSubmit={handleSimulateInbound} className="space-y-4 font-mono text-xs">
             <div className="flex items-center justify-between pb-1 border-b border-ink/10">
               <span className="text-muted-foreground text-[10px] uppercase font-bold">Inbound Caller Profile</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setInboundForm({
-                    customer_name: "Priya Sharma (Sample Caller)",
-                    customer_phone: "+1 (555) 892-4110",
-                    business_name: effectiveCompanyName,
-                    caller_inquiry: "[Sample] Inbound pricing inquiry for 50 commercial sales seats and API integration",
-                  });
-                }}
-                className="label-mono text-[10px] text-violet hover:underline flex items-center gap-1"
-              >
-                <Sparkles className="w-3 h-3" /> Fill 1 Demo Caller (Sample)
-              </button>
             </div>
 
             <div className="space-y-1">
@@ -2153,6 +2224,20 @@ export function VoiceFleetModule({
             <div className="border border-lime/40 bg-lime/10 p-4 flex items-center justify-between">
               <div className="space-y-0.5">
                 <span className="font-bold text-ink flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-lime-700 dark:text-lime" /> Sarvam AI Indic Speech Engine (Bulbul v3)
+                </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  Native Indic Pronunciation: Hindi (hi-IN) & Gujarati (gu-IN) Accents
+                </span>
+              </div>
+              <span className="label-mono border border-lime/40 bg-lime/20 text-lime-700 dark:text-lime px-2 py-0.5 text-[9px] font-bold">
+                ACTIVE & CONNECTED
+              </span>
+            </div>
+
+            <div className="border border-lime/40 bg-lime/10 p-4 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="font-bold text-ink flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-lime-700 dark:text-lime" /> Groq Llama 3.3 Post-Call Intelligence
                 </span>
                 <span className="text-[10px] text-muted-foreground block">Automated Call Review, Sentiment & Action Checklist</span>
@@ -2163,21 +2248,205 @@ export function VoiceFleetModule({
             </div>
           </div>
 
-          <form onSubmit={handleSaveSettings} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground text-[10px] uppercase font-bold flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Voice Synthesis Engine Persona
+          <form onSubmit={handleSaveSettings} className="space-y-5 pt-2">
+            <div className="space-y-2">
+              <label className="text-muted-foreground text-[10px] uppercase font-bold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Radio className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Voice Synthesis Engine Selector & Comparison
+                </span>
+                <span className="text-[9px] text-lime-700 dark:text-lime font-mono font-bold">
+                  Click any model to set as active engine
+                </span>
               </label>
-              <select
-                value={settings.voice_provider}
-                onChange={(e) => setSettings({ ...settings, voice_provider: e.target.value })}
-                className="w-full border border-ink/30 bg-paper px-3 py-2 text-ink focus:outline-none focus:border-violet"
-              >
-                <option value="11labs">ElevenLabs Multilingual Turbo (Sarah / Professional Consultative)</option>
-                <option value="cartesia">Cartesia Sonic (Ultra-Low Latency / Regional Accent)</option>
-                <option value="deepgram">Deepgram Aura Conversational V2</option>
-              </select>
+
+              {/* 2x2 Interactive Model Comparison Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
+                {[
+                  {
+                    id: "sarvam",
+                    name: "Sarvam AI (Bulbul v3)",
+                    tag: "100% Native Indic (Hindi & Gujarati)",
+                    pros: "Authentic Indian accents, zero foreign tone, highest realism for Indian buyers.",
+                    cons: "Specialized primarily for Indic regional languages.",
+                    recommended: true,
+                  },
+                  {
+                    id: "11labs",
+                    name: "ElevenLabs Multilingual",
+                    tag: "Global Multilingual (English & Europe)",
+                    pros: "High conversational fluency for English and 30+ European languages.",
+                    cons: "Heavy American/robotic accent when pronouncing Hindi or Gujarati.",
+                    recommended: false,
+                  },
+                  {
+                    id: "cartesia",
+                    name: "Cartesia Sonic",
+                    tag: "Ultra-Low Latency (<100ms Engine)",
+                    pros: "Lightning-fast first byte response (<100ms) for quick English turns.",
+                    cons: "Lacks native Indic phoneme tuning for regional Indian dialects.",
+                    recommended: false,
+                  },
+                  {
+                    id: "deepgram",
+                    name: "Deepgram Aura V2",
+                    tag: "Streaming Conversational Engine",
+                    pros: "Single-pipeline integration with Deepgram speech-to-text stream.",
+                    cons: "Flat prosody and accent distortion on non-English speech.",
+                    recommended: false,
+                  },
+                ].map((m) => {
+                  const isSelected = settings.voice_provider === m.id;
+                  return (
+                    <div
+                      key={m.id}
+                      onClick={() => setSettings({ ...settings, voice_provider: m.id })}
+                      className={`p-4 border cursor-pointer transition-all space-y-2.5 relative ${
+                        isSelected
+                          ? "border-lime/60 bg-lime/10 shadow-md ring-1 ring-lime/40"
+                          : "border-ink/20 bg-paper hover:border-ink/50 hover:bg-secondary/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-ink text-xs">{m.name}</span>
+                            {m.recommended && (
+                              <span className="bg-lime/20 text-lime-700 dark:text-lime text-[8px] font-bold px-1.5 py-0.2 border border-lime/40 label-mono">
+                                PRIMARY RECOMMENDATION
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground block font-mono">{m.tag}</span>
+                        </div>
+                        {isSelected ? (
+                          <CheckCircle2 className="w-4.5 h-4.5 text-lime-700 dark:text-lime shrink-0" />
+                        ) : (
+                          <div className="w-4 h-4 border border-ink/30 rounded-full shrink-0" />
+                        )}
+                      </div>
+
+                      {/* Pros & Cons */}
+                      <div className="space-y-1 pt-1 font-mono text-[10px] border-t border-ink/10">
+                        <div className="flex items-start gap-1 text-lime-800 dark:text-lime">
+                          <span className="font-bold shrink-0 text-[9px] bg-lime/20 px-1 py-0.2">ADV</span>
+                          <span className="leading-snug">{m.pros}</span>
+                        </div>
+                        <div className="flex items-start gap-1 text-amber-700 dark:text-amber-400">
+                          <span className="font-bold shrink-0 text-[9px] bg-amber-500/20 px-1 py-0.2">DISADV</span>
+                          <span className="leading-snug">{m.cons}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+
+            {settings.voice_provider === "sarvam" && (
+              <div className="space-y-4 border border-ink/15 bg-secondary/10 p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-muted-foreground text-[10px] uppercase font-bold flex items-center gap-1.5">
+                      <Radio className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Sarvam Speaker Persona
+                    </label>
+                    <select
+                      value={settings.sarvam_speaker}
+                      onChange={(e) =>
+                        setSettings({ ...settings, sarvam_speaker: e.target.value, voice_id: e.target.value })
+                      }
+                      className="w-full border border-ink/30 bg-paper px-3 py-2 text-ink focus:outline-none focus:border-violet"
+                    >
+                      <option value="priya">Priya (Female — Clear, Authentic Hindi & Gujarati)</option>
+                      <option value="aditya">Aditya (Male — Professional & Articulate Indic Tone)</option>
+                      <option value="pooja">Pooja (Female — Warm & Consultative)</option>
+                      <option value="shubh">Shubh (Male — Smooth & Engaging)</option>
+                      <option value="ritu">Ritu (Female — Expressive & Dynamic)</option>
+                      <option value="rohan">Rohan (Male — Energetic)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-muted-foreground text-[10px] uppercase font-bold flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Sarvam API Subscription Key
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.sarvam_api_key}
+                      onChange={(e) => setSettings({ ...settings, sarvam_api_key: e.target.value })}
+                      placeholder="sk_..."
+                      className="w-full border border-ink/30 bg-paper px-3 py-2 text-ink font-mono text-xs focus:outline-none focus:border-violet"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-muted-foreground text-[10px] uppercase font-bold flex items-center gap-1.5">
+                    <UploadCloud className="w-3.5 h-3.5 text-muted-foreground" /> Vapi Custom Voice Public Webhook URL (Optional for Cloud Telephony)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.public_webhook_url}
+                    onChange={(e) => setSettings({ ...settings, public_webhook_url: e.target.value })}
+                    placeholder="https://xyz.ngrok-free.app (leave blank for local development)"
+                    className="w-full border border-ink/30 bg-paper px-3 py-2 text-ink font-mono text-xs focus:outline-none focus:border-violet"
+                  />
+                  <span className="text-[10px] text-muted-foreground block">
+                    When placing live outbound calls via Vapi cloud carrier trunks, Vapi calls this webhook URL to stream Sarvam speech.
+                  </span>
+                </div>
+
+                {/* Voice Audition Previewer */}
+                <div className="border border-ink/15 bg-paper p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Live Voice Audition (Sarvam Bulbul v3)
+                    </span>
+                    <span className="text-[9px] font-mono text-lime-700 dark:text-lime font-bold">
+                      Zero Foreign Accent · Native Dialect
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={previewPlaying !== null}
+                      onClick={() =>
+                        playSarvamAudio(
+                          "नमस्ते! मैं व्यपारी एआई सेल्स एजेंट हूँ। आज मैं आपके व्यापार को बढ़ाने में कैसे मदद कर सकती हूँ?",
+                          "hi"
+                        )
+                      }
+                      className="border border-ink/30 bg-secondary/30 hover:bg-lime/20 hover:border-lime px-3 py-1.5 text-xs font-mono font-bold flex items-center gap-1.5 transition-all text-ink"
+                    >
+                      {previewPlaying === "hi" ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-lime-700 dark:text-lime" />
+                      ) : (
+                        <Volume2 className="w-3.5 h-3.5 text-lime-700 dark:text-lime" />
+                      )}
+                      Audition Hindi (हिन्दी)
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={previewPlaying !== null}
+                      onClick={() =>
+                        playSarvamAudio(
+                          "નમસ્તે! હું વ્યપારી એઆઈ સેલ્સ એજન્ટ છું. આજે હું તમારા વ્યવસાયના વેચાણ વધારવામાં કેવી રીતે મદદ કરી શકું?",
+                          "gu"
+                        )
+                      }
+                      className="border border-ink/30 bg-secondary/30 hover:bg-lime/20 hover:border-lime px-3 py-1.5 text-xs font-mono font-bold flex items-center gap-1.5 transition-all text-ink"
+                    >
+                      {previewPlaying === "gu" ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-lime-700 dark:text-lime" />
+                      ) : (
+                        <Volume2 className="w-3.5 h-3.5 text-lime-700 dark:text-lime" />
+                      )}
+                      Audition Gujarati (ગુજરાતી)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="pt-2 flex items-center justify-between">
               <button
@@ -2313,9 +2582,24 @@ export function VoiceFleetModule({
                               </>
                             )}
                           </span>
-                          <span className="border border-ink/15 bg-paper px-1.5 py-0.2 text-[9px]">
-                            {turn.timestamp}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => playSarvamAudio(turn.message, "auto", `modal-${i}`)}
+                              className="border border-ink/20 px-1.5 py-0.5 text-[9px] hover:bg-lime/20 flex items-center gap-1 text-ink transition-colors font-mono font-bold"
+                              title="Listen in Native Indic Voice (Sarvam AI)"
+                            >
+                              {playingAudioId === `modal-${i}` ? (
+                                <RefreshCw className="w-2.5 h-2.5 animate-spin text-lime-700 dark:text-lime" />
+                              ) : (
+                                <Volume2 className="w-2.5 h-2.5 text-lime-700 dark:text-lime" />
+                              )}
+                              Hear Voice
+                            </button>
+                            <span className="border border-ink/15 bg-paper px-1.5 py-0.2 text-[9px]">
+                              {turn.timestamp}
+                            </span>
+                          </div>
                         </div>
                         <p className="leading-relaxed text-xs">{turn.message}</p>
                       </div>

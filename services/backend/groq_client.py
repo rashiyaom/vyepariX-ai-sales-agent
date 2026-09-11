@@ -368,6 +368,13 @@ Analyze this single uploaded document or web page and return ONLY a valid JSON o
   ]
 }
 
+CRITICAL ANTI-HALLUCINATION RULES:
+- Every finding, metric, and quote MUST be traceable to text explicitly present in the document content below.
+- If a metric is not present, omit it — do NOT invent placeholder values like '$0', 'N/A estimated', or industry averages.
+- If the document contains no financial data, leave extracted_metrics as an empty array [].
+- Do NOT add generic business advice that is not derived from this specific document's content.
+- verifiable_quotes must be exact character-for-character excerpts from the document text.
+
 Return raw JSON only.
 """
 
@@ -375,7 +382,7 @@ def analyze_single_document(doc_name: str, doc_type: str, content_text: str) -> 
     """Analyze a single uploaded document independently to ensure 100% thorough extraction."""
     client = _get_client()
 
-    user_msg = f"DOCUMENT: {doc_name} (Format: {doc_type})\n\nCONTENT:\n{content_text[:4000]}"
+    user_msg = f"DOCUMENT: {doc_name} (Format: {doc_type})\n\nCONTENT:\n{content_text[:12000]}"
 
     for target_model in PREFERRED_MODELS:
         try:
@@ -412,20 +419,20 @@ def analyze_single_document(doc_name: str, doc_type: str, content_text: str) -> 
 GLOBAL_SYNTHESIS_PROMPT = """You are a Principal B2B Commercial Analyst, Fractional CMO, and Due-Diligence Specialist.
 Analyze the multi-source intelligence dossier (synthesized from attached files, spreadsheets, and web pages).
 
-You MUST produce a comprehensive commercial growth plan with a STRICT ZERO-DUMMY DATA POLICY.
+You MUST produce a comprehensive, high-precision commercial growth report with concrete, data-backed findings.
 
-STRICT NUMERICAL EXTRACTION & ZERO-HALLUCINATION RULES:
-1. "growth_forecast": ONLY populate if the source website or documents explicitly state revenue milestones, MRR, growth percentages, pricing tiers, or stated financial figures. IF NO EXPLICIT FINANCIAL NUMBERS EXIST IN THE SOURCE, RETURN AN EMPTY ARRAY [] FOR "growth_forecast". NEVER FABRICATE FAKE MONTHLY PROJECTIONS OR FAKE MRR!
-2. "conversion_funnel": ONLY populate if the source explicitly details sales pipeline stages with drop-off percentages or user volumes. IF NO FUNNEL METRICS EXIST IN THE SOURCE, RETURN AN EMPTY ARRAY [] FOR "conversion_funnel". NEVER FABRICATE FAKE FUNNEL STAGES!
-3. "financial_highlights": ONLY extract concrete quantitative metrics actually stated in the source text (e.g. stated pricing tiers, actual revenue, customer count, GMV, uptime %). If no quantitative metrics exist in the source, return an empty array [].
-4. "target_customers": List 3-5 specific buyer personas/ICPs with description, evidence, pain points, and deal size derived from the business context.
-5. "products_services": List 3-6 specific products, SKUs, API tiers, or service lines from the files/website.
-6. "current_marketing_channels": List 3-5 sales/marketing channels with evidence and strength (strong|moderate|weak).
-7. "swot_analysis": Provide 3-5 items for EACH of the 4 quadrants (strengths, weaknesses, opportunities, threats).
-8. "recommendations": Provide 4-6 prioritized strategic playbooks with action_steps, timeframe, and expected_roi.
-9. "opportunity_score": Dynamic integer 0-100 reflecting upside potential.
-10. "confidence_score": Dynamic integer 75-95 reflecting evidence depth.
-11. "timeline_roadmap": Provide 4 sequential phases with specific targets and deliverables derived from their offerings.
+DATA CALIBRATION & REASONING GUIDELINES:
+1. "growth_forecast": STRICT GROUND TRUTH: Only provide a 6-period trajectory if exact numerical time-series revenue or transactional ledgers are present in the dossier. If no verified financial ledger exists, return [] (empty list). NEVER invent or simulate status-quo revenue or forecast numbers.
+2. "conversion_funnel": STRICT GROUND TRUTH: Only provide sequential pipeline stages if actual stage/pipeline tracking records are present in the dossier. If no stage records exist, return [] (empty list). NEVER invent synthetic stages.
+3. "timeline_roadmap": Provide 4 actionable, phased execution milestones (Days 0–30, Days 30–60, Days 60–90, Days 90–180) with specific target metrics and 3 concrete deliverables per phase tailored to their product catalog.
+4. "financial_highlights": Extract 3-5 quantitative financial & commercial metrics (e.g. Estimated Average Deal Value, Analyzed Market Segment Size, Detected Pricing Tiers, Gross Margin Benchmarks).
+5. "target_customers": List 3-5 specific buyer personas/ICPs with description, evidence from the dossier, specific pain points, and estimated deal sizes.
+6. "products_services": List 3-6 specific products, SKUs, API tiers, or service lines extracted from the files/website.
+7. "current_marketing_channels": List 3-5 sales/marketing channels with evidence and strength (strong|moderate|weak).
+8. "swot_analysis": Provide 3-5 high-impact items for EACH of the 4 quadrants (strengths, weaknesses, opportunities, threats).
+9. "recommendations": Provide 4-6 prioritized strategic playbooks with action_steps, timeframe, and expected_roi.
+10. "opportunity_score": Dynamic integer 0-100 reflecting commercial upside potential.
+11. "confidence_score": Dynamic integer 75-98 reflecting evidence depth.
 
 JSON SCHEMA STRUCTURE:
 {
@@ -471,10 +478,10 @@ JSON SCHEMA STRUCTURE:
     {"stage": "string", "current_health": "optimal|underperforming|bottleneck|unknown", "observation": "string", "benchmark_advice": "string"}
   ],
   "growth_forecast": [
-    {"period": "Q1", "baseline_index": 100, "optimized_index": 120, "key_driver": "string"}
+    {"period": "Month 1", "baseline_index": 100, "optimized_index": 135, "key_driver": "string"}
   ],
   "timeline_roadmap": [
-    {"phase_name": "Phase 1: Discovery & Outbound Foundation", "timeframe": "Days 0 – 30", "target_metric": "100 Verified Accounts", "status": "in_progress", "deliverables": ["Audit data feeds", "Deploy email sequence"]}
+    {"phase_name": "Phase 1: Foundation & Pipeline Discovery", "timeframe": "Days 0 – 30", "target_metric": "100 Verified ICP Leads", "status": "in_progress", "deliverables": ["Audit data feeds", "Deploy automated outreach"]}
   ],
   "opportunity_score": 85,
   "confidence_score": 90,
@@ -492,6 +499,7 @@ def analyze_business(
     individual_doc_insights: list[DocumentInsight] | None = None,
     data_engine_figures: dict | None = None,
     model: str | None = None,
+    rag_context: str | None = None,
 ) -> BusinessAnalysis:
     client = _get_client()
 
@@ -504,14 +512,38 @@ Summary: {data_engine_figures.get('data_source_summary')}
 Incorporate these exact numbers into the executive summary, SWOT, and tactical recommendations.
 """
 
+    # Use RAG-retrieved context if available (focused, grounded), else full profile
+    if rag_context and rag_context.strip():
+        primary_content = rag_context
+        content_note = (
+            "NOTE: The DOSSIER below was assembled by semantic retrieval (RAG) — only the most "
+            "relevant document and web chunks are shown. Base ALL findings strictly on this retrieved evidence."
+        )
+        logger.info("analyze_business: Using RAG-retrieved context for synthesis (grounded mode)")
+    else:
+        primary_content = profile_markdown
+        content_note = "NOTE: Full scraped profile dossier provided below."
+        logger.info("analyze_business: Using full profile markdown for synthesis (fallback mode)")
+
     user_prompt = f"""DOSSIER WITH {doc_count} ATTACHED DOCUMENTS & WEB ASSETS:
 ================================================================================
-{profile_markdown}
+{content_note}
+
+{primary_content}
 ================================================================================
 {file_note}
-INSTRUCTIONS:
-1. Populate ALL fields: target_customers (3-5), products_services (3-5), marketing_channels (3-5), swot_analysis (4 quadrants), recommendations (4-6).
-2. Calculate opportunity_score and confidence_score dynamically based on the company's upside.
+CRITICAL INSTRUCTIONS:
+1. Populate EVERY section in the JSON schema with concrete, high-precision findings derived from the dossier:
+   - target_customers (3-5 specific buyer personas with estimated deal size and pain points)
+   - products_services (3-6 specific products/services extracted from the dossier with differentiators and pricing)
+   - current_marketing_channels (3-5 channels with evidence and strength)
+   - swot_analysis (at least 3-4 distinct bullets in EACH quadrant: strengths, weaknesses, opportunities, threats)
+   - recommendations (4-6 prioritized playbooks with clear action steps, timeframe, and expected ROI)
+   - growth_forecast: STRICT GROUND TRUTH: ONLY populate if exact numerical time-series revenue ledgers are present in the dossier. If no verified financial ledger exists, return [] (empty list). NEVER invent or simulate revenue figures.
+   - conversion_funnel: STRICT GROUND TRUTH: ONLY populate if actual stage/pipeline records are present in the dossier. If no stage records exist, return [] (empty list). NEVER invent pipeline stages.
+   - timeline_roadmap: MUST provide exactly 4 distinct execution phases (Days 0–30, Days 30–60, Days 60–90, Days 90–180) with measurable target_metric and 3 actionable deliverables tailored to their catalog
+   - financial_highlights: 3-5 concrete commercial and financial metrics
+2. Calculate opportunity_score (0-100) and confidence_score (75-98) dynamically based on the company's upside and evidence depth.
 
 Return ONLY valid JSON matching the schema.
 """
@@ -551,24 +583,23 @@ Return ONLY valid JSON matching the schema.
                 data["data_source_mode"] = data_engine_figures.get("data_source_mode", "website_inferred")
                 data["data_source_summary"] = data_engine_figures.get("data_source_summary", "")
 
-                if data_engine_figures.get("has_file_data"):
-                    # Direct file extraction takes absolute precedence for ground-truth numbers
-                    if data_engine_figures.get("growth_forecast"):
-                        data["growth_forecast"] = data_engine_figures["growth_forecast"]
-                    if data_engine_figures.get("conversion_funnel"):
-                        data["conversion_funnel"] = data_engine_figures["conversion_funnel"]
-                    if data_engine_figures.get("timeline_roadmap"):
-                        data["timeline_roadmap"] = data_engine_figures["timeline_roadmap"]
-                    if data_engine_figures.get("financial_highlights"):
-                        existing_fins = data.get("financial_highlights") or []
-                        file_fins = data_engine_figures["financial_highlights"]
-                        file_names = {f["metric_name"] for f in file_fins}
-                        data["financial_highlights"] = file_fins + [
-                            f for f in existing_fins if (isinstance(f, dict) and f.get("metric_name") not in file_names)
-                        ]
-                else:
-                    # STRICT ZERO-DUMMY POLICY: Do NOT inject fake forecast or fake funnel if website had no numbers
-                    pass
+                # STRICT GROUND TRUTH (Option A / Zero Simulation):
+                # Revenue curves and funnel geometry strictly require verified spreadsheet records.
+                # If data_engine extracted real records, use them; otherwise enforce empty list.
+                file_forecast = data_engine_figures.get("growth_forecast") or []
+                file_funnel = data_engine_figures.get("conversion_funnel") or []
+                data["growth_forecast"] = file_forecast
+                data["conversion_funnel"] = file_funnel
+
+                if data_engine_figures.get("timeline_roadmap"):
+                    data["timeline_roadmap"] = data_engine_figures["timeline_roadmap"]
+                if data_engine_figures.get("financial_highlights"):
+                    existing_fins = data.get("financial_highlights") or []
+                    file_fins = data_engine_figures["financial_highlights"]
+                    file_names = {f["metric_name"] for f in file_fins if isinstance(f, dict)}
+                    data["financial_highlights"] = file_fins + [
+                        f for f in existing_fins if (isinstance(f, dict) and f.get("metric_name") not in file_names)
+                    ]
 
             return BusinessAnalysis.model_validate(data)
 

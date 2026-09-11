@@ -12,8 +12,8 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 # Global budget for Groq request
-MAX_TOTAL_DOC_CHARS = 12000
-MAX_PAGE_CHARS = 2000
+MAX_TOTAL_DOC_CHARS = 35000
+MAX_PAGE_CHARS = 5000
 
 
 def _guess_company_name(
@@ -22,39 +22,57 @@ def _guess_company_name(
     business_description: str | None = None,
     processed_docs: list[dict] | None = None,
 ) -> str:
-    """Best-effort company name."""
+    """Best-effort company name resolution with JSON-LD schema awareness."""
     for page in pages:
-        title = page.get("title", "")
-        if title and len(title) < 80:
-            name = re.split(r"[|\-–—]", title)[0].strip()
-            if name and not name.lower().startswith(("home", "welcome", "index", "about us", "http")):
-                return name
+        semantic = page.get("semantic_elements") or {}
+        # Check Schema.org organization name if present
+        for s in semantic.get("json_ld_schemas", []):
+            if "Organization" in s or "LocalBusiness" in s or "Corporation" in s:
+                m = re.search(r"Name:\s*([^|]+)", s)
+                if m:
+                    cand = m.group(1).strip()
+                    if cand and len(cand) < 60:
+                        return cand
 
-    if processed_docs:
-        for doc in processed_docs:
-            fname = doc.get("filename", "")
-            base = re.sub(r"\.[^.]+$", "", fname)
-            clean = re.sub(r"[_\-]+", " ", base).strip().title()
-            # Extract first distinct brand word if possible
-            words = clean.split()
-            if words and len(words[0]) > 2 and words[0].lower() not in ["business", "analytics", "sales", "profile", "report", "deck"]:
-                return words[0]
+        title = page.get("title", "")
+        if title and len(title) < 100:
+            name = re.split(r"[|\-–—:]", title)[0].strip()
+            # Clean common prefixes
+            name = re.sub(r"^(?:Welcome to\s+|Home\s+-\s+|Official Site\s+of\s+)", "", name, flags=re.IGNORECASE).strip()
+            if name and not name.lower().startswith(("home", "welcome", "index", "about us", "http", "untitled")):
+                return name
 
     if source_url:
         domain = urlparse(source_url).netloc
         domain = re.sub(r"^www\.", "", domain)
         if domain:
-            base = domain.split(".")[0].title()
-            if base.lower() not in ["netlify", "vercel", "github", "render", "app"]:
+            parts = domain.split(".")
+            base = parts[0].title()
+            if base.lower() not in ["netlify", "vercel", "github", "render", "app", "pages", "drive", "docs"]:
                 return base
 
     if business_description:
         first_line = business_description.strip().split("\n")[0].strip()
-        match = re.search(r"^(?:Company|Business|Name|Brand|Portfolio)?[:\-]?\s*([A-Za-z0-9\s&'.-]{2,30})", first_line, re.IGNORECASE)
+        match = re.search(r"^(?:Company|Business|Name|Brand|Portfolio)?[:\-]?\s*([A-Za-z0-9\s&'.-]{2,40})", first_line, re.IGNORECASE)
         if match:
             extracted = match.group(1).strip()
             if len(extracted) > 1 and not extracted.lower().startswith(("i want", "we are", "i am", "a ", "the ")):
                 return extracted
+
+    if processed_docs:
+        ignored_prefixes = {
+            "business", "analytics", "sales", "profile", "report", "deck", "data", "sheet",
+            "export", "pivot", "fy20", "fy21", "fy22", "fy23", "fy24", "fy25", "q1", "q2",
+            "q3", "q4", "table", "ledger", "financial", "finance", "revenue", "pipeline",
+            "sample", "untitled", "test", "book", "extract"
+        }
+        for doc in processed_docs:
+            fname = doc.get("filename", "")
+            base = re.sub(r"\.[^.]+$", "", fname)
+            clean = re.sub(r"[_\-]+", " ", base).strip().title()
+            words = clean.split()
+            if words and len(words[0]) > 2 and words[0].lower() not in ignored_prefixes:
+                return clean[:40]
 
     return "Business Entity"
 
@@ -87,7 +105,7 @@ def build_profile(
 
     # Calculate per-document character quota so every document is guaranteed inclusion
     num_docs = max(len(processed_docs), 1)
-    per_doc_quota = max(int(MAX_TOTAL_DOC_CHARS / num_docs), 2500)
+    per_doc_quota = max(int(MAX_TOTAL_DOC_CHARS / num_docs), 4000)
 
     formatted_docs = []
     for doc in processed_docs:
@@ -132,7 +150,7 @@ def build_profile(
 
 def profile_to_markdown(profile: dict) -> str:
     """
-    Format a multi-source intelligence dossier guaranteeing every attached document is distinctly highlighted.
+    Format a multi-source intelligence dossier guaranteeing every attached document and crawled web page is distinctly highlighted.
     """
     lines = []
     company = profile.get("company_name", "Target Company")
@@ -159,12 +177,12 @@ def profile_to_markdown(profile: dict) -> str:
     pages = profile.get("pages", [])
     if pages:
         lines.append(f"\n=======================================================")
-        lines.append(f"## PUBLIC WEB ASSETS ({len(pages)} PAGES)")
+        lines.append(f"## PUBLIC WEB ASSETS ({len(pages)} PAGES CRAWLED & PARSED)")
         lines.append(f"=======================================================")
-        for i, page in enumerate(pages[:4], 1):
-            title = page.get("title", "Page")
+        for i, page in enumerate(pages, 1):
+            title = page.get("title", f"Page {i}")
             url = page.get("url", "")
-            lines.append(f"\n### [WEB PAGE {i}]: {title} ({url})")
-            lines.append(page.get("text", "")[:1500])
+            lines.append(f"\n### [WEB PAGE {i} OF {len(pages)}]: {title} ({url})")
+            lines.append(page.get("text", ""))
 
     return "\n".join(lines)

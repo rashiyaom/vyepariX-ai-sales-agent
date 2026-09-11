@@ -16,16 +16,18 @@ from typing import List, Optional
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
+import auth_middleware
 import database as db
 import doc_processor
 import groq_client
 import normalizer
 import scraper
 import data_engine
+import rag_engine
 import voice_router
 
 load_dotenv()
@@ -176,12 +178,14 @@ async def run_pipeline(
     raw_files: list[tuple[str, bytes]],
 ):
     """
-    Two-tier intelligence pipeline:
+    Three-tier intelligence pipeline (with RAG):
     1. Parse uploaded documents
     2. Scrape website (if website URL supplied)
+    2.5. RAG Ingest: chunk + embed all content → ChromaDB (per report_id)
     3. Run dedicated individual deep-dive on EVERY document (guaranteeing 100% extraction)
-    4. Run global commercial synthesis for ICPs, Products, Channels, SWOT, and Recommendations
-    5. Persist to SQLite
+    4. RAG Retrieve: top-8 relevant chunks for synthesis query
+    5. Run global commercial synthesis (Groq sees only retrieved chunks, not full 35k profile)
+    6. Persist to Supabase
     """
     try:
         # ── Phase 1: Parse Uploaded Documents ─────────────────────────
@@ -237,6 +241,42 @@ async def run_pipeline(
 
         await db.update_raw_profile(report_id, full_profile)
 
+        # ── Phase 2.5: RAG Ingest — chunk + embed all content into ChromaDB ──
+        logger.info(f"[{report_id}] RAG: Ingesting scraped pages and documents into vector store...")
+        rag_web_chunks = 0
+        rag_doc_chunks = 0
+        rag_ingest_ok = False
+        try:
+            if pages:
+                rag_web_chunks = await rag_engine.ingest_scraped_pages(report_id, pages)
+            if processed_docs:
+                rag_doc_chunks = await rag_engine.ingest_processed_docs(report_id, processed_docs)
+            rag_ingest_ok = (rag_web_chunks + rag_doc_chunks) > 0
+            logger.info(
+                f"[{report_id}] RAG: Ingested {rag_web_chunks} web chunks + {rag_doc_chunks} doc chunks "
+                f"({rag_web_chunks + rag_doc_chunks} total)"
+            )
+        except rag_engine.RAGQuotaError as quota_err:
+            # HARD STOP — quota/auth failure means the RAG pipeline is broken.
+            # Failing the report here is intentional: a silent fallback would hide
+            # degraded output quality and burn Gemini quota on re-runs.
+            logger.error(
+                f"[{report_id}] RAG QUOTA/AUTH FAILURE — analysis aborted. "
+                f"Check GEMINI_API_KEY and daily quota. Error: {quota_err}"
+            )
+            await db.update_status(
+                report_id,
+                "failed",
+                f"RAG embedding quota/auth error: {quota_err}. Check GEMINI_API_KEY.",
+            )
+            return
+        except rag_engine.RAGIngestError as ingest_err:
+            # Non-quota ChromaDB failure — log at ERROR, partial ingest may have succeeded.
+            logger.error(
+                f"[{report_id}] RAG ingest error (partial ingest, retrieval may be incomplete): {ingest_err}"
+            )
+            rag_ingest_ok = (rag_web_chunks + rag_doc_chunks) > 0
+
         # ── Phase 4: Tier 1 Individual Document Deep-Dives ────────────
         await db.update_status(report_id, "analyzing")
         logger.info(f"[{report_id}] Running dedicated extraction on {len(processed_docs)} documents...")
@@ -275,17 +315,60 @@ async def run_pipeline(
                         logger.info(f"[{report_id}] Direct data file extracted: {data_engine_figures.get('data_source_summary')}")
                         break
 
+        profile_md = normalizer.profile_to_markdown(full_profile)
+
         if not tabular_file_found:
             logger.info(f"[{report_id}] No tabular sales file uploaded — synthesizing figures from website & market intelligence")
             data_engine_figures = data_engine.synthesize_website_figures(
                 company_name=company_name,
-                industry=initial_profile.get("industry", "B2B Enterprise"),
+                industry="B2B Commercial Enterprise",
                 opportunity_score=86,
+                scraped_text=profile_md,
             )
+
+        # ── Phase 4.7: RAG Retrieve — top-k relevant chunks for synthesis ──
+        rag_context = ""
+        if rag_ingest_ok:
+            synthesis_query = (
+                f"Commercial analysis, key products, pricing, SWOT analysis, target customers, "
+                f"revenue, financial highlights, risks, and growth opportunities for {company_name}"
+            )
+            logger.info(f"[{report_id}] RAG: Retrieving context for synthesis query...")
+            try:
+                rag_context = await rag_engine.retrieve_context(
+                    report_id=report_id,
+                    query=synthesis_query,
+                    top_k=8,
+                )
+                logger.info(
+                    f"[{report_id}] RAG: Retrieved {len(rag_context)} chars of grounded context. "
+                    f"Groq will reason over retrieved chunks only (not the full "
+                    f"{len(profile_md)}-char profile)."
+                )
+            except rag_engine.RAGQuotaError as quota_err:
+                # HARD STOP — quota failure at retrieve time is equally fatal
+                logger.error(
+                    f"[{report_id}] RAG QUOTA/AUTH FAILURE at retrieval — analysis aborted. Error: {quota_err}"
+                )
+                await db.update_status(
+                    report_id,
+                    "failed",
+                    f"RAG retrieval quota/auth error: {quota_err}. Check GEMINI_API_KEY.",
+                )
+                return
+            except rag_engine.RAGRetrieveError as retrieve_err:
+                # Non-quota retrieval error — explicitly logged at ERROR, then falls
+                # through to direct profile synthesis (NOT silent — caller sees it).
+                logger.error(
+                    f"[{report_id}] RAG retrieval failed (non-quota). "
+                    f"Falling through to direct profile synthesis. Error: {retrieve_err}"
+                )
+                rag_context = ""  # explicit, not silent
+        else:
+            logger.info(f"[{report_id}] RAG: No chunks ingested — using direct profile synthesis.")
 
         # ── Phase 5: Tier 2 Global Commercial Synthesis ───────────────
         logger.info(f"[{report_id}] Running global commercial synthesis...")
-        profile_md = normalizer.profile_to_markdown(full_profile)
         analysis = groq_client.analyze_business(
             profile_markdown=profile_md,
             linkedin_url=linkedin_url,
@@ -293,6 +376,7 @@ async def run_pipeline(
             doc_count=len(processed_docs),
             individual_doc_insights=individual_insights,
             data_engine_figures=data_engine_figures,
+            rag_context=rag_context if rag_context else None,
         )
 
         # ── Phase 6: Persist ──────────────────────────────────────────
@@ -313,8 +397,19 @@ async def create_report(
     business_description: Optional[str] = Form(None),
     linkedin_url: Optional[str] = Form(None),
     other_links: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    authorization: Optional[str] = Header(None),
     files: List[UploadFile] = File(default=[]),
 ):
+    resolved_user_id = user_id
+    if not resolved_user_id and authorization:
+        try:
+            auth_user = await auth_middleware.get_current_user(authorization)
+            if auth_user:
+                resolved_user_id = auth_user.id
+        except Exception:
+            pass
+
     clean_other_links: list[str] = []
     if other_links:
         try:
@@ -366,7 +461,7 @@ async def create_report(
         "linkedin": linkedin_url or "",
         "other": clean_other_links,
         "files": [fname for fname, _ in raw_files],
-    })
+    }, user_id=resolved_user_id)
 
     background_tasks.add_task(
         run_pipeline,
@@ -390,8 +485,19 @@ async def get_report(report_id: str):
 
 
 @app.get("/api/reports")
-async def list_reports():
-    return await db.list_reports(limit=20)
+async def list_reports(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+):
+    resolved_user_id = user_id
+    if not resolved_user_id and authorization:
+        try:
+            auth_user = await auth_middleware.get_current_user(authorization)
+            if auth_user:
+                resolved_user_id = auth_user.id
+        except Exception:
+            pass
+    return await db.list_reports(user_id=resolved_user_id, limit=50)
 
 
 @app.get("/health")
