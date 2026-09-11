@@ -280,15 +280,33 @@ async def dispatch_vapi_call(
     provider = creds.get("voice_provider", "sarvam")
     webhook_url = creds.get("public_webhook_url", "").strip()
 
-    if provider == "sarvam":
-        custom_url = f"{webhook_url.rstrip('/')}/webhook/vapi/custom-voice" if webhook_url else "http://localhost:8000/webhook/vapi/custom-voice"
+    is_public_webhook = (
+        bool(webhook_url)
+        and (webhook_url.startswith("http://") or webhook_url.startswith("https://"))
+        and "localhost" not in webhook_url
+        and "127.0.0.1" not in webhook_url
+    )
+
+    if provider == "sarvam" and is_public_webhook:
+        custom_url = f"{webhook_url.rstrip('/')}/webhook/vapi/custom-voice"
         voice_block = {
             "provider": "custom-voice",
             "server": {
                 "url": custom_url,
             },
         }
-        logger.info(f"Using Sarvam AI Custom Voice endpoint for Vapi call: {custom_url}")
+        logger.info(f"Using Sarvam AI Custom Voice public endpoint for Vapi call: {custom_url}")
+    elif provider == "sarvam":
+        logger.warning(
+            "Sarvam AI is active, but PUBLIC_WEBHOOK_URL is missing or set to localhost. "
+            "Vapi cloud servers require a public URL (e.g. ngrok) to bridge Sarvam custom-voice on live calls. "
+            "Falling back to built-in cloud voice to prevent call disconnect. "
+            "Set PUBLIC_WEBHOOK_URL to your ngrok URL (e.g. https://xyz.ngrok-free.app) in Voice Settings to enable Sarvam on live calls."
+        )
+        voice_block = {
+            "provider": "11labs",
+            "voiceId": "sarah",
+        }
     elif provider == "cartesia":
         v_id = creds.get("voice_id", "sonic-english")
         if v_id in ("priya", "sarah", ""):

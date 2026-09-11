@@ -2381,17 +2381,17 @@ export function VoiceFleetModule({
 
                 <div className="space-y-1.5">
                   <label className="text-muted-foreground text-[10px] uppercase font-bold flex items-center gap-1.5">
-                    <UploadCloud className="w-3.5 h-3.5 text-muted-foreground" /> Vapi Custom Voice Public Webhook URL (Optional for Cloud Telephony)
+                    <UploadCloud className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Public Webhook URL (Required for Live Calls with Sarvam AI Voice)
                   </label>
                   <input
                     type="text"
                     value={settings.public_webhook_url}
                     onChange={(e) => setSettings({ ...settings, public_webhook_url: e.target.value })}
-                    placeholder="https://xyz.ngrok-free.app (leave blank for local development)"
+                    placeholder="https://your-ngrok-subdomain.ngrok-free.app"
                     className="w-full border border-ink/30 bg-paper px-3 py-2 text-ink font-mono text-xs focus:outline-none focus:border-violet"
                   />
-                  <span className="text-[10px] text-muted-foreground block">
-                    When placing live outbound calls via Vapi cloud carrier trunks, Vapi calls this webhook URL to stream Sarvam speech.
+                  <span className="text-[10px] text-muted-foreground block leading-tight">
+                    💡 <strong>For Live Phone Calls with Sarvam Voice:</strong> Vapi cloud servers require a public HTTPS URL (e.g. run <code className="bg-muted px-1 py-0.5 font-mono text-ink">ngrok http 8000</code> in your terminal and paste the URL here). If left blank/localhost, Vapi uses cloud fallback voice to prevent call disconnects.
                   </span>
                 </div>
 
