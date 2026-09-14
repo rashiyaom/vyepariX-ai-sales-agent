@@ -19,8 +19,8 @@ from typing import Any, Optional
 import httpx
 from dotenv import load_dotenv
 
-import database as db
-import groq_client
+from app.core import database as db
+from app.services import groq_client
 
 load_dotenv()
 logger = logging.getLogger(__name__)

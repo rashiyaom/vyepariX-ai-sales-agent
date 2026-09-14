@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_EMBED_MODEL = "models/gemini-embedding-001"
-CHROMA_PERSIST_DIR = str(Path(__file__).parent / "data" / "chroma_store")
+# Path(__file__) is backend/app/services/rag_engine.py — resolve up to backend/
+CHROMA_PERSIST_DIR = str(Path(__file__).resolve().parent.parent.parent / "data" / "chroma_store")
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
 DEFAULT_TOP_K = 8

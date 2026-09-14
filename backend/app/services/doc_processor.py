@@ -22,9 +22,10 @@ import re
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Ensure environment variables (.env) are loaded whether running from root or services/backend
+# Ensure environment variables (.env) are loaded whether running from root or backend/
 load_dotenv()
-_backend_env = Path(__file__).resolve().parent / ".env"
+# Path(__file__) is backend/app/services/doc_processor.py — go up 3 levels to reach backend/
+_backend_env = Path(__file__).resolve().parent.parent.parent / ".env"
 if _backend_env.exists():
     load_dotenv(_backend_env)
 
