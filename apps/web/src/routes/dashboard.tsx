@@ -6,6 +6,7 @@ import {
   Radio,
   BarChart3,
   Settings,
+  Video,
   ChevronLeft,
   ChevronRight,
   Globe,
@@ -80,6 +81,7 @@ import {
 } from "@/components/scraper/ReportComponents";
 import { LeadRadarModule } from "@/components/modules/radar";
 import { VoiceFleetModule } from "@/components/modules/voice";
+import { VideoMeetingModule } from "@/components/modules/video";
 import { AnalyticsModule } from "@/components/modules/analytics";
 import { SettingsModule } from "@/components/modules/settings";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -792,6 +794,12 @@ function ReportView({
                 className="border border-violet bg-violet text-paper px-3.5 py-2 label-mono font-bold hover:bg-violet/90 transition-all flex items-center gap-1.5 text-xs"
               >
                 <Sparkles className="w-3.5 h-3.5" /> Deploy Voice SDR
+              </button>
+              <button
+                onClick={() => onNavigateModule("video")}
+                className="border border-ink/40 bg-secondary px-3.5 py-2 label-mono font-bold text-ink hover:bg-paper hover:border-violet hover:text-violet transition-all flex items-center gap-1.5 text-xs"
+              >
+                <Video className="w-3.5 h-3.5 text-violet" /> Video Avatar Meeting
               </button>
             </>
           )}
@@ -2146,7 +2154,21 @@ function DashboardPage() {
               />
             )}
 
-            {/* 4. Analytics View */}
+            {/* 4. Video Sales Agent View */}
+            {activeNav === "video" && (
+              <VideoMeetingModule
+                analysis={activeAnalysis}
+                companyName={activeCompanyInfo.name}
+                industry={activeCompanyInfo.industry}
+                reports={recentReports}
+                onNavigateToIntelligence={() => {
+                  setView("intake");
+                  setActiveNav("intelligence");
+                }}
+              />
+            )}
+
+            {/* 5. Analytics View */}
             {activeNav === "analytics" && (
               <AnalyticsModule
                 analysis={activeAnalysis}

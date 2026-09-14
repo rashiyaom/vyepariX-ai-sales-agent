@@ -15,6 +15,7 @@ import {
   Brain,
   Radio,
   Sparkles,
+  Video,
   BarChart3,
   Settings,
   type LucideIcon,
@@ -64,6 +65,15 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     badge: "AI SDR",
     description: "Autonomous AI voice agents for outbound SDR and multilingual sales calls.",
     componentPath: "modules/voice",
+  },
+  {
+    id: "video",
+    label: "Video Agent",
+    icon: Video,
+    enabled: true,
+    badge: "Mitra",
+    description: "Autonomous AI video avatar sales agent powered by Tavus CVI for high-touch buyer meetings.",
+    componentPath: "modules/video",
   },
   {
     id: "analytics",

@@ -35,16 +35,25 @@ SUPABASE_PUBLISHABLE_KEY = os.getenv(
     "sb_publishable_xLcJx_03aKm_jLKJKtzcBA_9R5lF0Hx"
 )
 
+def _get_clean_supabase_url() -> str:
+    raw = os.getenv("SUPABASE_URL", SUPABASE_URL).strip().rstrip("/")
+    if raw.endswith("/rest/v1"):
+        raw = raw[:-len("/rest/v1")].rstrip("/")
+    return raw
+
 # Initialize Supabase client with administrative secret key
 _client: Optional[Client] = None
+
 
 def get_supabase() -> Client:
     """Return active Supabase client singleton."""
     global _client
     if _client is None:
-        if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        url = _get_clean_supabase_url()
+        secret_key = os.getenv("SUPABASE_SECRET_KEY", SUPABASE_SECRET_KEY).strip()
+        if not url or not secret_key:
             raise RuntimeError("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in environment.")
-        _client = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
+        _client = create_client(url, secret_key)
     return _client
 
 
@@ -444,3 +453,135 @@ async def save_voice_settings(settings: dict) -> dict:
         logger.warning(f"Error saving voice settings in Supabase: {e}")
 
     return await get_voice_settings()
+
+
+# ─────────────────────────── Video Sales Agent Operations ──────────────
+
+async def create_video_call(call_data: dict, user_id: Optional[str] = None) -> str:
+    """Insert a new video call record in Supabase."""
+    call_id = call_data.get("id") or str(uuid.uuid4())
+    now = _now()
+    client = get_supabase()
+
+    briefing = call_data.get("briefing")
+    if isinstance(briefing, str):
+        try:
+            briefing = json.loads(briefing)
+        except Exception:
+            briefing = None
+
+    transcript = call_data.get("transcript", [])
+    if isinstance(transcript, str):
+        try:
+            transcript = json.loads(transcript)
+        except Exception:
+            transcript = []
+
+    analysis = call_data.get("analysis")
+    if isinstance(analysis, str):
+        try:
+            analysis = json.loads(analysis)
+        except Exception:
+            analysis = None
+
+    row = {
+        "id": call_id,
+        "report_id": call_data.get("report_id"),
+        "customer_name": call_data.get("customer_name") or "Prospect",
+        "customer_email": call_data.get("customer_email"),
+        "customer_phone": call_data.get("customer_phone"),
+        "business_name": call_data.get("business_name") or "Enterprise",
+        "call_reason": call_data.get("call_reason"),
+        "status": call_data.get("status", "active"),
+        "tavus_conversation_id": call_data.get("tavus_conversation_id"),
+        "tavus_persona_id": call_data.get("tavus_persona_id"),
+        "conversational_context": call_data.get("conversational_context"),
+        "custom_greeting": call_data.get("custom_greeting"),
+        "conversation_url": call_data.get("conversation_url"),
+        "duration_seconds": call_data.get("duration_seconds", 0),
+        "briefing": briefing,
+        "transcript": transcript,
+        "recording_url": call_data.get("recording_url"),
+        "analysis": analysis,
+        "error_message": call_data.get("error_message"),
+        "started_at": call_data.get("started_at", now),
+        "ended_at": call_data.get("ended_at"),
+        "created_at": now,
+        "updated_at": now,
+    }
+    if user_id:
+        row["user_id"] = user_id
+    elif call_data.get("user_id"):
+        row["user_id"] = call_data.get("user_id")
+
+    await asyncio.to_thread(client.table("video_calls").insert(row).execute)
+    return call_id
+
+
+async def update_video_call(call_id: str, updates: dict):
+    """Update fields of an existing video call record in Supabase."""
+    client = get_supabase()
+    clean_updates = dict(updates)
+    clean_updates["updated_at"] = _now()
+
+    for k in ("briefing", "transcript", "analysis"):
+        if k in clean_updates and isinstance(clean_updates[k], str):
+            try:
+                clean_updates[k] = json.loads(clean_updates[k])
+            except Exception:
+                pass
+
+    await asyncio.to_thread(
+        client.table("video_calls").update(clean_updates).eq("id", call_id).execute
+    )
+
+
+async def get_video_call(call_id: str) -> Optional[dict]:
+    """Fetch single video call by ID from Supabase."""
+    client = get_supabase()
+    try:
+        res = await asyncio.to_thread(
+            client.table("video_calls").select("*").eq("id", call_id).maybe_single().execute
+        )
+        return res.data if res else None
+    except Exception as e:
+        logger.warning(f"Error fetching video call {call_id} from Supabase: {e}")
+        return None
+
+
+async def list_video_calls(
+    user_id: Optional[str] = None,
+    limit: int = 100,
+) -> List[dict]:
+    """List recent video calls for a user from Supabase, newest first."""
+    client = get_supabase()
+    try:
+        query = client.table("video_calls").select("*")
+        if user_id:
+            query = query.eq("user_id", user_id)
+        query = query.order("created_at", desc=True).limit(limit)
+        res = await asyncio.to_thread(query.execute)
+        return res.data or []
+    except Exception as e:
+        logger.warning(f"Error listing video calls from Supabase: {e}")
+        return []
+
+
+async def get_video_call_by_tavus_id(tavus_conversation_id: str) -> Optional[dict]:
+    """Fetch single video call by Tavus conversation ID from Supabase."""
+    client = get_supabase()
+    try:
+        res = await asyncio.to_thread(
+            client.table("video_calls")
+            .select("*")
+            .eq("tavus_conversation_id", tavus_conversation_id)
+            .maybe_single()
+            .execute
+        )
+        return res.data if res else None
+    except Exception as e:
+        logger.warning(
+            f"Error fetching video call with tavus_conversation_id '{tavus_conversation_id}' from Supabase: {e}"
+        )
+        return None
+

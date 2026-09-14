@@ -29,6 +29,7 @@ import scraper
 import data_engine
 import rag_engine
 import voice_router
+import video_router
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -64,9 +65,13 @@ app.add_middleware(
 # Mount Voice Fleet Router
 app.include_router(voice_router.router, prefix="/api/voice", tags=["Voice Fleet"])
 
-# Also expose Vapi Webhooks at root path level for Vapi server URL compatibility
+# Mount Video Sales Agent Router
+app.include_router(video_router.router, prefix="/api/video", tags=["Video Sales Agent"])
+
+# Also expose Vapi and Tavus Webhooks at root path level for webhook URL compatibility
 app.add_api_route("/webhook/vapi/custom-voice", voice_router.vapi_custom_voice_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
 app.add_api_route("/webhook/vapi", voice_router.vapi_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
+app.add_api_route("/webhook/tavus", video_router.tavus_webhook, methods=["POST"], tags=["Video Sales Agent Webhook"])
 
 # ─────────────────────────── Supabase Auth Provisioning ─────────────────
 
