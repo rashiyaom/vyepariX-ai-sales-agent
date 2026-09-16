@@ -8,9 +8,11 @@ Endpoints:
   GET  /health               — Health check
 """
 
+import asyncio
 import json
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -29,6 +31,8 @@ from app.services import scraper
 from app.services import data_engine
 from app.services import rag_engine
 from app.routers import voice_router
+from app.services.search.router import get_search_router
+from config.domain_trust import classify_and_filter
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -182,14 +186,17 @@ async def run_pipeline(
     raw_files: list[tuple[str, bytes]],
 ):
     """
-    Three-tier intelligence pipeline (with RAG):
+    Three-tier intelligence pipeline (with RAG and DDG-first search layer):
     1. Parse uploaded documents
-    2. Scrape website (if website URL supplied)
-    2.5. RAG Ingest: chunk + embed all content → ChromaDB (per report_id)
-    3. Run dedicated individual deep-dive on EVERY document (guaranteeing 100% extraction)
-    4. RAG Retrieve: top-8 relevant chunks for synthesis query
-    5. Run global commercial synthesis (Groq sees only retrieved chunks, not full 35k profile)
-    6. Persist to Supabase
+    2. Stage A (concurrent via asyncio.gather):
+       - Crawl website (first-party pages, tier=first_party, confidence=1.0)
+       - Search via SearchRouter (DDG → Serper fallback) for enrichment URLs
+    3. Classify search results via domain_trust; fetch seed pages (Stage B)
+    3.5. RAG Ingest: chunk + embed all content → ChromaDB (per report_id)
+    4. Run dedicated individual deep-dive on EVERY document (guaranteeing 100% extraction)
+    5. RAG Retrieve: top-8 relevant chunks for synthesis query
+    6. Run global commercial synthesis (Groq sees only retrieved chunks)
+    7. Persist to Supabase
     """
     try:
         # ── Phase 1: Parse Uploaded Documents ─────────────────────────
@@ -200,48 +207,88 @@ async def run_pipeline(
             groq_key = os.getenv("GROQ_API_KEY", "")
             processed_docs = doc_processor.process_documents(raw_files, groq_api_key=groq_key)
 
-        # ── Phase 2: Web Scraping ─────────────────────────────────────
-        pages = []
+        # ── Phase 2: Stage A — Concurrent crawl + search ──────────────
+        # IMPORTANT: both tasks start simultaneously via asyncio.gather.
+        # The docstring above and these comments reflect the actual execution
+        # model — do NOT change to sequential without updating the docstring.
+        pages: list[dict] = []
+        search_results = []
         domain = ""
+
         if website_url:
             await db.update_status(report_id, "scraping")
-            logger.info(f"[{report_id}] Scraping web assets: {website_url}")
-            pages = await scraper.crawl_website(website_url)
+            domain = urlparse(website_url).netloc
+            # Derive a search hint from domain so Stage A search can run
+            # concurrently with the crawl (we don't have company_name yet).
+            domain_hint = domain.split(".")[0] if domain else ""
+            search_query = f"{domain_hint} {domain}" if domain_hint else domain
+
+            logger.info(
+                f"[{report_id}] Stage A: launching crawl + search concurrently "
+                f"(site={website_url}, query={search_query!r})"
+            )
+            stage_a_start = time.monotonic()
+
+            # Genuinely parallel — both coroutines run concurrently
+            pages, search_results = await asyncio.gather(
+                scraper.crawl_website(website_url),
+                get_search_router().search(search_query, max_results=10),
+                return_exceptions=False,
+            )
+
+            stage_a_duration = time.monotonic() - stage_a_start
+            logger.info(
+                '{"event": "crawl_stage_duration", "stage": "search", "seconds": %.2f, "report_id": %r}',
+                stage_a_duration,
+                report_id,
+            )
 
             if not pages and not business_description and not processed_docs:
-                await db.update_status(report_id, "failed", "No content could be extracted from the website and no documents/notes provided.")
+                await db.update_status(
+                    report_id, "failed",
+                    "No content could be extracted from the website and no documents/notes provided."
+                )
                 return
-            domain = urlparse(website_url).netloc
+
+        elif business_description:
+            # No URL — use DDG alone for discovery (company-name-only mode)
+            logger.info(f"[{report_id}] No URL provided — DDG-only discovery mode")
+            first_line = (business_description or "").strip().split("\n")[0][:60]
+            search_results = await get_search_router().search(first_line, max_results=10)
         else:
-            logger.info(f"[{report_id}] Direct documents/context mode (skipping website scraping)")
+            logger.info(f"[{report_id}] Direct documents/context mode (no web sources)")
 
-        # ── Phase 3: External Mentions & Normalization ─────────────────
-        initial_profile = normalizer.build_profile(
-            source_url=website_url,
-            pages=pages,
-            linkedin_url=linkedin_url,
-            extra_links=other_links,
-            business_description=business_description,
-            processed_docs=processed_docs,
-        )
-        company_name = initial_profile.get("company_name", domain or "Business Entity")
+        # ── Phase 2 Stage B: Classify + fetch seed pages ───────────────
+        # Stage B runs after Stage A has completed (seed_urls depend on
+        # search_results from Stage A).  This is sequential by design.
+        seeded_pages: list[dict] = []
+        if search_results:
+            seed_urls = classify_and_filter(search_results, domain)
+            existing_urls = {p["url"] for p in pages}
+            if seed_urls:
+                logger.info(
+                    f"[{report_id}] Stage B: fetching {len(seed_urls)} classified seed URLs"
+                )
+                seeded_pages = await scraper.fetch_seed_pages(
+                    seed_urls,
+                    existing_urls=existing_urls,
+                    max_seed_pages=5,
+                )
+                logger.info(
+                    f"[{report_id}] Stage B complete: {len(seeded_pages)} seed pages fetched"
+                )
 
-        ddg_snippets = []
-        if website_url or business_description:
-            try:
-                ddg_snippets = scraper.discover_extra_context(company_name, domain)
-            except Exception as e:
-                logger.warning(f"[{report_id}] DuckDuckGo search skipped: {e}")
-
+        # ── Phase 3: Normalization (single pass — no double build_profile) ─
         full_profile = normalizer.build_profile(
             source_url=website_url,
             pages=pages,
+            seeded_pages=seeded_pages,
             linkedin_url=linkedin_url,
             extra_links=other_links,
-            ddg_snippets=ddg_snippets,
             business_description=business_description,
             processed_docs=processed_docs,
         )
+        company_name = full_profile.get("company_name", domain or "Business Entity")
 
         await db.update_raw_profile(report_id, full_profile)
 
@@ -253,6 +300,10 @@ async def run_pipeline(
         try:
             if pages:
                 rag_web_chunks = await rag_engine.ingest_scraped_pages(report_id, pages)
+            # Also ingest seeded pages (DDG-discovered) into RAG
+            if seeded_pages:
+                seed_chunks = await rag_engine.ingest_scraped_pages(report_id, seeded_pages)
+                rag_web_chunks += seed_chunks
             if processed_docs:
                 rag_doc_chunks = await rag_engine.ingest_processed_docs(report_id, processed_docs)
             rag_ingest_ok = (rag_web_chunks + rag_doc_chunks) > 0
