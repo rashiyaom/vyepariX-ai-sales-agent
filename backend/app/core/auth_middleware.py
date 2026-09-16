@@ -1,22 +1,18 @@
 """
-auth_middleware.py — Supabase JWT Authentication for FastAPI Backend.
-Validates bearer tokens signed by Supabase Auth (using JWT secret or claims inspection).
+auth_middleware.py — Google JWT Authentication for FastAPI Backend.
+Validates bearer tokens signed by Google (RS256) instead of Supabase.
 """
 
 import os
 import logging
+import requests
 from typing import Optional
-import jwt
 from fastapi import Header, HTTPException, status
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://adhgwqlulqeqpwycvmni.supabase.co")
-SUPABASE_JWT_SECRET = os.getenv(
-    "SUPABASE_JWT_SECRET",
-    "sMDSG6Z5CsaPtAXFcEc1gIY/ZyvZHaPB3ooS9cDkZH6mzvAh0r1OGdFs3d7PxhLmjlVttaeduSMvFIIv1kD3Zw=="
-)
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
 class AuthUser(BaseModel):
     id: str
@@ -26,8 +22,7 @@ class AuthUser(BaseModel):
 
 async def get_current_user(authorization: Optional[str] = Header(None)) -> Optional[AuthUser]:
     """
-    Dependency to verify Supabase JWT.
-    Supports HS256 decoding with SUPABASE_JWT_SECRET or claims inspection.
+    Dependency to verify Google JWT.
     """
     if not authorization:
         return None
@@ -42,43 +37,46 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Optio
     token = parts[1].strip()
 
     try:
-        # Try decoding with Supabase JWT Secret (HS256)
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False}
+        # Verify the Google access token by calling the userinfo endpoint
+        response = requests.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=5
         )
+        
+        if response.status_code != 200:
+            raise ValueError(f"Google API returned {response.status_code}: {response.text}")
+            
+        user_info = response.json()
+        
         return AuthUser(
-            id=payload.get("sub"),
-            email=payload.get("email"),
-            role=payload.get("role", "authenticated"),
-            user_metadata=payload.get("user_metadata", {}),
+            id=user_info.get("sub"),
+            email=user_info.get("email"),
+            role="authenticated",
+            user_metadata={
+                "name": user_info.get("name"),
+                "picture": user_info.get("picture"),
+            },
         )
-    except jwt.PyJWTError as e:
-        try:
-            unverified = jwt.decode(token, options={"verify_signature": False})
-            if unverified.get("sub"):
-                return AuthUser(
-                    id=unverified.get("sub"),
-                    email=unverified.get("email"),
-                    role=unverified.get("role", "authenticated"),
-                    user_metadata=unverified.get("user_metadata", {}),
-                )
-        except Exception:
-            pass
-        logger.warning(f"JWT verification failed: {e}")
+    except ValueError as e:
+        logger.warning(f"Google JWT verification failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired Supabase token: {e}",
+            detail=f"Invalid or expired Google token: {e}",
+        )
+    except Exception as e:
+        logger.warning(f"Unexpected error verifying token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed",
         )
 
 async def require_auth(authorization: Optional[str] = Header(None)) -> AuthUser:
-    """Strict dependency requiring valid logged-in Supabase user."""
+    """Strict dependency requiring valid logged-in user."""
     user = await get_current_user(authorization)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Please provide a valid Supabase bearer token.",
+            detail="Authentication required. Please provide a valid Google bearer token.",
         )
     return user

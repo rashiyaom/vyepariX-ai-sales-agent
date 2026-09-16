@@ -2,7 +2,7 @@
 rag_engine.py — Retrieval-Augmented Generation (RAG) engine for VyepariX.
 
 Pipeline:
-  1. Ingest: chunk document / scraped text → Gemini gemini-embedding-001 → ChromaDB
+  1. Ingest: chunk document / scraped text → Gemini gemini-embedding-001 → Pinecone
   2. Retrieve: embed query → cosine search → top-k chunks back
   3. Generate: groq_client receives retrieved chunks, NOT the raw 35k profile
 
@@ -10,8 +10,8 @@ SDK: google-genai (new stable SDK, replaces deprecated google-generativeai)
 Model: models/gemini-embedding-001 (verified available on this API key)
 
 Design:
-  - Per-report Chroma collection (rep-<report_id>) for strict isolation
-  - PERSISTENT ChromaDB at ./data/chroma_store/ — index survives server restarts,
+  - Per-report Pinecone namespace (rep-<report_id>) for strict isolation
+  - Pinecone Vector Store — index survives server restarts,
     documents are never re-embedded unnecessarily (preserves Gemini free-tier quota)
   - LOUD FAILURE policy: Gemini quota/auth errors are raised immediately so the
     pipeline fails visibly — no silent degradation to raw-text Groq bypass.
@@ -38,8 +38,9 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_EMBED_MODEL = "models/gemini-embedding-001"
-# Path(__file__) is backend/app/services/rag_engine.py — resolve up to backend/
-CHROMA_PERSIST_DIR = str(Path(__file__).resolve().parent.parent.parent / "data" / "chroma_store")
+PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY", "")
+PINECONE_INDEX_NAME = os.environ.get("PINECONE_INDEX_NAME", "vyeparix-rag")
+
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
 DEFAULT_TOP_K = 8
@@ -78,15 +79,17 @@ def _get_gemini_client():
         )
 
 
-def _get_chroma_client():
-    """Return a persistent ChromaDB client."""
+def _get_pinecone_index():
+    """Return the Pinecone index instance."""
     try:
-        import chromadb
-        Path(CHROMA_PERSIST_DIR).mkdir(parents=True, exist_ok=True)
-        return chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+        from pinecone import Pinecone
+        if not PINECONE_API_KEY:
+            raise RuntimeError("PINECONE_API_KEY not set in .env")
+        pc = Pinecone(api_key=PINECONE_API_KEY)
+        return pc.Index(PINECONE_INDEX_NAME)
     except ImportError:
         raise RuntimeError(
-            "chromadb is not installed. Run: pip3 install 'chromadb>=0.5.0'"
+            "pinecone is not installed. Run: pip3 install 'pinecone>=5.0.0'"
         )
 
 
@@ -177,7 +180,7 @@ async def _embed_texts_async(texts: list, task_type: str = "RETRIEVAL_DOCUMENT")
 # ─────────────────────────── Ingest ────────────────────────────────────────
 
 def _collection_name(report_id: str) -> str:
-    """ChromaDB collection names: 3–63 chars, alphanumeric + hyphens."""
+    """Pinecone namespace: alphanumeric + hyphens."""
     safe = re.sub(r"[^a-zA-Z0-9\-]", "-", report_id)
     return f"rep-{safe}"[:63]
 
@@ -189,7 +192,7 @@ async def ingest_document(
     text: str,
 ) -> int:
     """
-    Chunk text, embed via Gemini, store in ChromaDB. Returns chunk count.
+    Chunk text, embed via Gemini, store in Pinecone. Returns chunk count.
 
     Raises RAGQuotaError immediately if Gemini quota/auth fails — callers must
     not catch this silently.  Raises RAGIngestError on other ingest failures.
@@ -214,31 +217,43 @@ async def ingest_document(
         )
 
     try:
-        client = _get_chroma_client()
-        col = client.get_or_create_collection(
-            name=_collection_name(report_id),
-            metadata={"hnsw:space": "cosine"},
-        )
+        index = _get_pinecone_index()
+        namespace = _collection_name(report_id)
 
         ids = [
             re.sub(r"[^a-zA-Z0-9_\-\.]", "_", f"{source_type}_{source_name}_{i}")[:512]
             for i in range(len(chunks))
         ]
-        metadatas = [
-            {"source": source_name, "type": source_type, "chunk_idx": i}
-            for i in range(len(chunks))
-        ]
+        
+        vectors_to_upsert = []
+        for i in range(len(chunks)):
+            vectors_to_upsert.append({
+                "id": ids[i],
+                "values": vectors[i],
+                "metadata": {
+                    "source": source_name,
+                    "type": source_type,
+                    "chunk_idx": i,
+                    "text": chunks[i]
+                }
+            })
 
-        col.upsert(ids=ids, documents=chunks, embeddings=vectors, metadatas=metadatas)
+        batch_size = 100
+        for i in range(0, len(vectors_to_upsert), batch_size):
+            index.upsert(
+                vectors=vectors_to_upsert[i : i + batch_size],
+                namespace=namespace
+            )
+
         logger.info(
             f"[RAG] Stored {len(chunks)} chunks from '{source_name}' "
-            f"→ '{_collection_name(report_id)}'"
+            f"→ namespace '{namespace}'"
         )
         return len(chunks)
 
     except Exception as e:
         raise RAGIngestError(
-            f"[RAG] ChromaDB upsert failed for '{source_name}': {e}"
+            f"[RAG] Pinecone upsert failed for '{source_name}': {e}"
         ) from e
 
 
@@ -288,9 +303,9 @@ async def ingest_processed_docs(report_id: str, processed_docs: list) -> int:
 
 def _retrieve_sync(report_id: str, query: str, top_k: int) -> list:
     """
-    Embed query, search ChromaDB, return ranked chunk dicts.
+    Embed query, search Pinecone, return ranked chunk dicts.
     Raises RAGQuotaError on Gemini quota/auth failure.
-    Raises RAGRetrieveError on ChromaDB failures.
+    Raises RAGRetrieveError on Pinecone failures.
     """
     # RAGQuotaError propagates directly from _embed_texts_sync
     vectors = _embed_texts_sync([query], task_type="RETRIEVAL_QUERY")
@@ -299,44 +314,34 @@ def _retrieve_sync(report_id: str, query: str, top_k: int) -> list:
     query_vector = vectors[0]
 
     try:
-        chroma = _get_chroma_client()
-        col_name = _collection_name(report_id)
-        existing = [c.name for c in chroma.list_collections()]
-        if col_name not in existing:
-            raise RAGRetrieveError(
-                f"[RAG] Collection '{col_name}' not found — was ingest skipped?"
-            )
-
-        col = chroma.get_collection(col_name)
-        n_results = min(top_k, col.count())
-        if n_results == 0:
-            raise RAGRetrieveError(
-                f"[RAG] Collection '{col_name}' exists but is empty."
-            )
-
-        results = col.query(
-            query_embeddings=[query_vector],
-            n_results=n_results,
-            include=["documents", "metadatas", "distances"],
+        index = _get_pinecone_index()
+        namespace = _collection_name(report_id)
+        
+        results = index.query(
+            vector=query_vector,
+            top_k=top_k,
+            namespace=namespace,
+            include_metadata=True
         )
+        
+        matches = results.get("matches", [])
+        if not matches:
+             return []
+             
     except (RAGRetrieveError, RAGQuotaError):
         raise
     except Exception as e:
-        raise RAGRetrieveError(f"[RAG] ChromaDB query error: {e}") from e
-
-    docs = results.get("documents", [[]])[0]
-    metas = results.get("metadatas", [[]])[0]
-    dists = results.get("distances", [[]])[0]
+        raise RAGRetrieveError(f"[RAG] Pinecone query error: {e}") from e
 
     return [
         {
-            "text": doc,
-            "source": meta.get("source", "Unknown"),
-            "type": meta.get("type", "document"),
-            "chunk_idx": meta.get("chunk_idx", 0),
-            "relevance": round(1.0 - dist, 4),
+            "text": match.metadata.get("text", ""),
+            "source": match.metadata.get("source", "Unknown"),
+            "type": match.metadata.get("type", "document"),
+            "chunk_idx": match.metadata.get("chunk_idx", 0),
+            "relevance": round(match.score, 4),
         }
-        for doc, meta, dist in zip(docs, metas, dists)
+        for match in matches
     ]
 
 
@@ -384,13 +389,14 @@ async def retrieve_context(report_id: str, query: str, top_k: int = DEFAULT_TOP_
 # ─────────────────────────── Cleanup ───────────────────────────────────────
 
 def delete_report_collection(report_id: str) -> None:
-    """Remove the ChromaDB collection for a given report."""
+    """Remove the Pinecone namespace for a given report."""
     try:
-        client = _get_chroma_client()
-        client.delete_collection(_collection_name(report_id))
-        logger.info(f"[RAG] Deleted collection '{_collection_name(report_id)}'")
+        index = _get_pinecone_index()
+        namespace = _collection_name(report_id)
+        index.delete(delete_all=True, namespace=namespace)
+        logger.info(f"[RAG] Deleted namespace '{namespace}'")
     except Exception as e:
-        logger.warning(f"[RAG] Could not delete collection for {report_id}: {e}")
+        logger.warning(f"[RAG] Could not delete namespace for {report_id}: {e}")
 
 
 # ─────────────────────────── Self-Test ─────────────────────────────────────
