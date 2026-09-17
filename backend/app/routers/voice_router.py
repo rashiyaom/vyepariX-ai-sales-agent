@@ -16,10 +16,10 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Header, Query, Request, Response
 from pydantic import BaseModel, Field
 
-import database as db
-import voice_engine
-import sarvam_service
-import auth_middleware
+from app.core import database as db
+from app.core import auth_middleware
+from app.services import voice_engine
+from app.services import sarvam_service
 
 logger = logging.getLogger(__name__)
 

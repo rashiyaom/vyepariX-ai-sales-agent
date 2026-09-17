@@ -18,7 +18,7 @@ from typing import Any, Dict, Optional
 from dotenv import load_dotenv
 
 # Ensure environment variables are loaded
-_backend_dir = Path(__file__).resolve().parent.parent
+_backend_dir = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_backend_dir / ".env")
 load_dotenv()
 
@@ -61,8 +61,9 @@ def _load_system_prompt() -> str:
     """Loads system prompt from prompts/briefing_compiler_prompt.md."""
     candidates = [
         Path(__file__).resolve().parent.parent.parent / "prompts" / "briefing_compiler_prompt.md",
-        Path(__file__).resolve().parent.parent / "prompts" / "briefing_compiler_prompt.md",
+        Path(__file__).resolve().parent.parent.parent.parent / "prompts" / "briefing_compiler_prompt.md",
         Path.cwd() / "prompts" / "briefing_compiler_prompt.md",
+        Path.cwd() / "backend" / "prompts" / "briefing_compiler_prompt.md",
     ]
     for p in candidates:
         if p.is_file():
@@ -204,8 +205,9 @@ if __name__ == "__main__":
     # Locate example file
     candidates = [
         Path(__file__).resolve().parent.parent.parent / "prompts" / "briefing_compiler_example.json",
-        Path(__file__).resolve().parent.parent / "prompts" / "briefing_compiler_example.json",
+        Path(__file__).resolve().parent.parent.parent.parent / "prompts" / "briefing_compiler_example.json",
         Path.cwd() / "prompts" / "briefing_compiler_example.json",
+        Path.cwd() / "backend" / "prompts" / "briefing_compiler_example.json",
     ]
     example_path = next((p for p in candidates if p.is_file()), None)
     if not example_path:

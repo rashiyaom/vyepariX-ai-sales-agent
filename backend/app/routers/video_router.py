@@ -20,10 +20,10 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-import auth_middleware
-import database as db
-import voice_engine
-from video.briefing_compiler import compile_meeting_briefing, BriefingCompilerError
+from app.core import auth_middleware
+from app.core import database as db
+from app.services import voice_engine
+from app.services.briefing_compiler import compile_meeting_briefing, BriefingCompilerError
 
 logger = logging.getLogger(__name__)
 

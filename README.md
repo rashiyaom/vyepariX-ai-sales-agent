@@ -43,8 +43,8 @@ vyepariX-Voice-agent/
 # From repository root:
 npm run dev:web
 
-# Or directly in apps/web:
-cd apps/web
+# Or directly in frontend:
+cd frontend
 npm install
 npm run dev
 ```
@@ -54,10 +54,10 @@ npm run dev
 # From repository root:
 npm run dev:backend
 
-# Or directly in services/backend:
-cd services/backend
+# Or directly in backend:
+cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 ```
 
 ## Environment Setup
@@ -65,12 +65,12 @@ uvicorn main:app --reload --port 8000
 Copy the example environment files and populate your API credentials:
 
 ```bash
-cp apps/web/.env.example apps/web/.env
-cp services/backend/.env.example services/backend/.env
+cp frontend/.env.example frontend/.env
+cp backend/.env.example backend/.env
 ```
 
 ## Deployment Guide
 
-- **Frontend (`apps/web`)**: Set Root Directory to `apps/web` on Vercel / Netlify.
-- **Backend (`services/backend`)**: Deploy as a Python Web Service on Render / Railway / AWS App Runner.
+- **Frontend (`frontend`)**: Set Root Directory to `frontend` on Vercel / Netlify.
+- **Backend (`backend`)**: Deploy as a Python Web Service on Render / Railway / AWS App Runner (Entrypoint: `app.main:app`).
 - **Database (`supabase`)**: Link with Supabase CLI or execute `supabase/schema.sql` in your Supabase SQL editor.

@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
-# Ensure services/backend directory is on sys.path
+# Ensure backend directory is on sys.path
 backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
@@ -38,9 +38,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import auth_middleware
-import database as db
-import video_router
+from app.core import auth_middleware
+from app.core import database as db
+from app.routers import video_router
 
 
 def create_test_token(user_id: str, email: str = "test@example.com") -> str:
@@ -107,7 +107,7 @@ def test_start_meeting_unauthenticated(client):
 
 def test_start_meeting_report_not_found(client, token_a):
     """Returns 404 when report does not exist."""
-    with patch("database.get_report", new_callable=AsyncMock) as mock_get_report:
+    with patch("app.core.database.get_report", new_callable=AsyncMock) as mock_get_report:
         mock_get_report.return_value = None
 
         res = client.post(
@@ -121,7 +121,7 @@ def test_start_meeting_report_not_found(client, token_a):
 
 def test_start_meeting_report_forbidden_for_other_user(client, user_a, user_b, token_a):
     """Returns 403 when report exists but belongs to a different user."""
-    with patch("database.get_report", new_callable=AsyncMock) as mock_get_report:
+    with patch("app.core.database.get_report", new_callable=AsyncMock) as mock_get_report:
         mock_get_report.return_value = {
             "id": "report-user-b",
             "user_id": user_b["id"],  # Belongs to user B
@@ -141,7 +141,7 @@ def test_start_meeting_report_forbidden_for_other_user(client, user_a, user_b, t
 def test_start_meeting_report_not_done(client, user_a, token_a):
     """Returns 400 when report status is not 'done'."""
     for bad_status in ["pending", "scraping", "analyzing", "failed"]:
-        with patch("database.get_report", new_callable=AsyncMock) as mock_get_report:
+        with patch("app.core.database.get_report", new_callable=AsyncMock) as mock_get_report:
             mock_get_report.return_value = {
                 "id": "report-pending",
                 "user_id": user_a["id"],
@@ -177,9 +177,9 @@ def test_start_meeting_tavus_error_surfaced_and_no_db_row(client, user_a, token_
     }
 
     with (
-        patch("database.get_report", new_callable=AsyncMock, return_value=mock_report),
-        patch("video_router.compile_meeting_briefing", return_value=mock_briefing),
-        patch("database.create_video_call", new_callable=AsyncMock) as mock_create_call,
+        patch("app.core.database.get_report", new_callable=AsyncMock, return_value=mock_report),
+        patch("app.routers.video_router.compile_meeting_briefing", return_value=mock_briefing),
+        patch("app.core.database.create_video_call", new_callable=AsyncMock) as mock_create_call,
         patch("httpx.AsyncClient.post") as mock_tavus_post,
         patch.dict(os.environ, {"TAVUS_API_KEY": "test_tavus_key", "TAVUS_PAL_ID": "pal_123"}),
     ):
@@ -224,9 +224,9 @@ def test_start_meeting_success(client, user_a, token_a):
     }
 
     with (
-        patch("database.get_report", new_callable=AsyncMock, return_value=mock_report),
-        patch("video_router.compile_meeting_briefing", return_value=mock_briefing),
-        patch("database.create_video_call", new_callable=AsyncMock) as mock_create_call,
+        patch("app.core.database.get_report", new_callable=AsyncMock, return_value=mock_report),
+        patch("app.routers.video_router.compile_meeting_briefing", return_value=mock_briefing),
+        patch("app.core.database.create_video_call", new_callable=AsyncMock) as mock_create_call,
         patch("httpx.AsyncClient.post") as mock_tavus_post,
         patch.dict(os.environ, {
             "TAVUS_API_KEY": "test_tavus_key",
@@ -311,7 +311,7 @@ def test_get_meeting_unauthenticated(client):
 
 
 def test_get_meeting_not_found(client, token_a):
-    with patch("database.get_video_call", new_callable=AsyncMock, return_value=None):
+    with patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=None):
         res = client.get(
             "/api/video/meetings/nonexistent-id",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -328,7 +328,7 @@ def test_get_meeting_forbidden_for_other_user(client, user_b, token_a):
         "transcript": [{"speaker": "Mitra", "text": "Hello"}],
         "analysis": {"lead_score": 90},
     }
-    with patch("database.get_video_call", new_callable=AsyncMock, return_value=call_record):
+    with patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=call_record):
         res = client.get(
             "/api/video/meetings/call-belonging-to-b",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -347,7 +347,7 @@ def test_get_meeting_success(client, user_a, token_a):
         "analysis": {"sentiment": "positive"},
         "started_at": "2026-09-12T10:00:00Z",
     }
-    with patch("database.get_video_call", new_callable=AsyncMock, return_value=call_record):
+    with patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=call_record):
         res = client.get(
             "/api/video/meetings/call-123",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -368,7 +368,7 @@ def test_end_meeting_unauthenticated(client):
 
 
 def test_end_meeting_not_found(client, token_a):
-    with patch("database.get_video_call", new_callable=AsyncMock, return_value=None):
+    with patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=None):
         res = client.post(
             "/api/video/meetings/non-existent-call/end",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -383,7 +383,7 @@ def test_end_meeting_forbidden_for_other_user(client, user_b, token_a):
         "user_id": user_b["id"],
         "status": "active",
     }
-    with patch("database.get_video_call", new_callable=AsyncMock, return_value=call_record):
+    with patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=call_record):
         res = client.post(
             "/api/video/meetings/call-belonging-to-b/end",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -399,7 +399,7 @@ def test_end_meeting_already_ended(client, user_a, token_a):
         "status": "ended",
         "ended_at": "2026-09-12T12:00:00Z",
     }
-    with patch("database.get_video_call", new_callable=AsyncMock, return_value=call_record):
+    with patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=call_record):
         res = client.post(
             "/api/video/meetings/call-already-ended/end",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -417,8 +417,8 @@ def test_end_meeting_success(client, user_a, token_a):
         "ended_at": None,
     }
     with (
-        patch("database.get_video_call", new_callable=AsyncMock, return_value=call_record),
-        patch("database.update_video_call", new_callable=AsyncMock) as mock_update,
+        patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=call_record),
+        patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update,
         patch("httpx.AsyncClient.post") as mock_tavus_post,
         patch.dict(os.environ, {"TAVUS_API_KEY": "test-tavus-key"}),
     ):
@@ -463,8 +463,8 @@ def test_end_meeting_tavus_failure_is_non_fatal(client, user_a, token_a):
         "ended_at": None,
     }
     with (
-        patch("database.get_video_call", new_callable=AsyncMock, return_value=call_record),
-        patch("database.update_video_call", new_callable=AsyncMock) as mock_update,
+        patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=call_record),
+        patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update,
         patch("httpx.AsyncClient.post", side_effect=Exception("Connection timeout to Tavus")),
         patch.dict(os.environ, {"TAVUS_API_KEY": "test-tavus-key"}),
     ):
@@ -493,8 +493,8 @@ def test_end_meeting_preserves_existing_ended_at(client, user_a, token_a):
         "ended_at": existing_timestamp,
     }
     with (
-        patch("database.get_video_call", new_callable=AsyncMock, return_value=call_record),
-        patch("database.update_video_call", new_callable=AsyncMock) as mock_update,
+        patch("app.core.database.get_video_call", new_callable=AsyncMock, return_value=call_record),
+        patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update,
         patch("httpx.AsyncClient.post") as mock_tavus_post,
         patch.dict(os.environ, {"TAVUS_API_KEY": "test-tavus-key"}),
     ):
@@ -530,7 +530,7 @@ def test_list_meetings_scoped_to_user(client, user_a, token_a):
         {"id": "c-2", "user_id": user_a["id"], "status": "active", "created_at": "2026-09-12T12:00:00Z"},
         {"id": "c-1", "user_id": user_a["id"], "status": "ended", "created_at": "2026-09-12T11:00:00Z"},
     ]
-    with patch("database.list_video_calls", new_callable=AsyncMock, return_value=user_calls) as mock_list:
+    with patch("app.core.database.list_video_calls", new_callable=AsyncMock, return_value=user_calls) as mock_list:
         res = client.get(
             "/api/video/meetings",
             headers={"Authorization": f"Bearer {token_a}"},
@@ -546,7 +546,7 @@ def test_list_meetings_scoped_to_user(client, user_a, token_a):
 
 def test_main_app_video_routes():
     """Verify video router is properly mounted in main.py under /api/video and root /webhook/tavus."""
-    from main import app
+    from app.main import app
     main_client = TestClient(app)
 
     # Calling endpoints via main app without auth should hit video_router and return 401
@@ -560,7 +560,7 @@ def test_main_app_video_routes():
     assert res_start.status_code == 401
 
     # Root /webhook/tavus should be accessible without authentication
-    with patch("database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=None):
+    with patch("app.core.database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=None):
         res_root_webhook = main_client.post(
             "/webhook/tavus",
             json={"conversation_id": "root-tavus-conv-1", "event_type": "system.pal_joined"},
@@ -580,7 +580,7 @@ def test_tavus_webhook_missing_conversation_id(client):
 
 def test_tavus_webhook_untracked_conversation_id(client):
     """Returns 200 with 'untracked' when conversation is not found in database."""
-    with patch("database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=None):
+    with patch("app.core.database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=None):
         res = client.post(
             "/api/video/webhook/tavus",
             json={
@@ -603,8 +603,8 @@ def test_tavus_webhook_pal_joined(client):
         "transcript": [],
         "analysis": None,
     }
-    with patch("database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
-         patch("database.update_video_call", new_callable=AsyncMock) as mock_update:
+    with patch("app.core.database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
+         patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update:
         res = client.post(
             "/api/video/webhook/tavus",
             json={
@@ -644,9 +644,9 @@ def test_tavus_webhook_transcription_ready_and_groq_analysis(client):
         "agent_performance_review": "Excellent rapport and handled pricing objection.",
     }
 
-    with patch("database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
-         patch("database.update_video_call", new_callable=AsyncMock) as mock_update, \
-         patch("voice_engine.analyze_call_with_groq", return_value=mock_analysis_result) as mock_groq:
+    with patch("app.core.database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
+         patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update, \
+         patch("app.services.voice_engine.analyze_call_with_groq", return_value=mock_analysis_result) as mock_groq:
 
         res = client.post(
             "/api/video/webhook/tavus",
@@ -701,8 +701,8 @@ def test_tavus_webhook_recording_ready(client):
         "recording_url": None,
         "duration_seconds": 0,
     }
-    with patch("database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
-         patch("database.update_video_call", new_callable=AsyncMock) as mock_update:
+    with patch("app.core.database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
+         patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update:
         res = client.post(
             "/api/video/webhook/tavus",
             json={
@@ -736,9 +736,9 @@ def test_tavus_webhook_system_shutdown(client):
         "transcript": [{"speaker": "agent", "message": "Hi", "timestamp": "00:01"}],
         "analysis": None,
     }
-    with patch("database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
-         patch("database.update_video_call", new_callable=AsyncMock) as mock_update, \
-         patch("voice_engine.analyze_call_with_groq", return_value={"summary": "Demo summary"}) as mock_groq:
+    with patch("app.core.database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
+         patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update, \
+         patch("app.services.voice_engine.analyze_call_with_groq", return_value={"summary": "Demo summary"}) as mock_groq:
         res = client.post(
             "/api/video/webhook/tavus",
             json={
@@ -772,9 +772,9 @@ def test_tavus_webhook_idempotency_skip_duplicate_analysis(client):
         ],
         "analysis": {"summary": "Already analyzed"},
     }
-    with patch("database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
-         patch("database.update_video_call", new_callable=AsyncMock) as mock_update, \
-         patch("voice_engine.analyze_call_with_groq") as mock_groq:
+    with patch("app.core.database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call), \
+         patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update, \
+         patch("app.services.voice_engine.analyze_call_with_groq") as mock_groq:
         res = client.post(
             "/api/video/webhook/tavus",
             json={
@@ -810,9 +810,9 @@ def test_tavus_webhook_shutdown_after_transcription_ready_no_duplicate_analysis(
         "transcript": [{"speaker": "agent", "message": "Hi", "timestamp": "00:01"}],
         "analysis": None,  # Analysis might still be in progress or just finished
     }
-    with patch("database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call_already_ended), \
-         patch("database.update_video_call", new_callable=AsyncMock) as mock_update, \
-         patch("voice_engine.analyze_call_with_groq") as mock_groq:
+    with patch("app.core.database.get_video_call_by_tavus_id", new_callable=AsyncMock, return_value=mock_call_already_ended), \
+         patch("app.core.database.update_video_call", new_callable=AsyncMock) as mock_update, \
+         patch("app.services.voice_engine.analyze_call_with_groq") as mock_groq:
         res = client.post(
             "/api/video/webhook/tavus",
             json={
@@ -879,9 +879,9 @@ def test_tavus_webhook_rapid_transcription_ready_retries_only_analyzes_once(clie
         assert res_retry.status_code == 200
         return mock_analysis_result
 
-    with patch("database.get_video_call_by_tavus_id", side_effect=mock_get), \
-         patch("database.update_video_call", side_effect=mock_update), \
-         patch("voice_engine.analyze_call_with_groq", side_effect=mock_groq_side_effect) as mock_groq:
+    with patch("app.core.database.get_video_call_by_tavus_id", side_effect=mock_get), \
+         patch("app.core.database.update_video_call", side_effect=mock_update), \
+         patch("app.services.voice_engine.analyze_call_with_groq", side_effect=mock_groq_side_effect) as mock_groq:
 
         # Rapid Delivery 1: arrives when status is active
         res1 = client.post("/api/video/webhook/tavus", json=payload)

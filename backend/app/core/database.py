@@ -162,7 +162,7 @@ def _ensure_visual_intelligence(report: dict) -> tuple[dict, bool]:
 
     if not analysis.get("timeline_roadmap"):
         try:
-            from data_engine import synthesize_website_figures
+            from app.services.data_engine import synthesize_website_figures
             company = analysis.get("company_name") or "Target Company"
             ind = analysis.get("industry") or "B2B Commercial Enterprise"
             opp = analysis.get("opportunity_score") or 85
