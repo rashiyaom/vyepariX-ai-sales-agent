@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import {
   Brain,
+  Video,
   Globe,
   FileText,
   Sparkles,
@@ -770,6 +771,12 @@ function ReportView({
                 className="border border-violet bg-violet text-paper px-3.5 py-2 label-mono font-bold hover:bg-violet/90 transition-all flex items-center gap-1.5 text-xs"
               >
                 <Sparkles className="w-3.5 h-3.5" /> Deploy Voice SDR
+              </button>
+              <button
+                onClick={() => onNavigateModule("video")}
+                className="border border-ink/40 bg-secondary px-3.5 py-2 label-mono font-bold text-ink hover:bg-paper hover:border-violet hover:text-violet transition-all flex items-center gap-1.5 text-xs"
+              >
+                <Video className="w-3.5 h-3.5 text-violet" /> Video Avatar Meeting
               </button>
             </>
           )}

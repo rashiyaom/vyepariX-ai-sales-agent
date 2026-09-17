@@ -125,7 +125,6 @@ function LoginPage() {
     session,
     profile,
     signInWithGoogle,
-    signInWithCredential,
     signInWithEmail,
     signUpWithEmail,
     resendVerificationEmail,
