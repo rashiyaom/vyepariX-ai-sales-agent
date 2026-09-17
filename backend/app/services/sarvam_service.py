@@ -314,6 +314,20 @@ async def dispatch_sarvam_outbound_call(
     ).rstrip("/")
 
     destination_number = format_e164_phone_number(customer_phone)
+    digits_only = re.sub(r"[^\d]", "", destination_number)
+    if destination_number.startswith("+91"):
+        sub_len = len(digits_only) - 2
+        if sub_len != 10:
+            return {
+                "success": False,
+                "error": f"Invalid Indian phone number '{customer_phone}'. It contains {sub_len} digits, but Indian mobile numbers must have exactly 10 digits (e.g. +91 98765 43210).",
+            }
+    elif len(digits_only) < 10:
+        return {
+            "success": False,
+            "error": f"Invalid phone number '{customer_phone}'. Please provide a valid phone number in E.164 format with country code.",
+        }
+
     initial_bot_message = build_initial_bot_message(
         business_name=business_name,
         customer_name=customer_name,

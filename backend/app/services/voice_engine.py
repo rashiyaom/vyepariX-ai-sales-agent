@@ -91,9 +91,17 @@ async def get_credentials() -> dict:
         "twilio_phone_number": db_settings.get("twilio_phone_number") or os.getenv("TWILIO_PHONE_NUMBER", ""),
         "voice_provider": db_settings.get("voice_provider") or os.getenv("VOICE_PROVIDER", "sarvam"),
         "voice_id": db_settings.get("voice_id") or os.getenv("VOICE_ID", "priya"),
-        "sarvam_api_key": db_settings.get("sarvam_api_key") or os.getenv("SARVAM_API_KEY", ""),
+        "sarvam_api_key": (
+            os.getenv("SARVAM_API_KEY", "")
+            or db_settings.get("sarvam_api_key")
+            or ""
+        ).strip(),
         "sarvam_speaker": db_settings.get("sarvam_speaker") or os.getenv("SARVAM_SPEAKER", "priya"),
-        "public_webhook_url": db_settings.get("public_webhook_url") or os.getenv("PUBLIC_WEBHOOK_URL", ""),
+        "public_webhook_url": (
+            db_settings.get("public_webhook_url")
+            or os.getenv("PUBLIC_WEBHOOK_URL", "")
+            or os.getenv("PUBLIC_BASE_URL", "")
+        ).strip(),
     }
 
 

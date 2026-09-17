@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
+import { useState, useEffect, useRef } from "react";
 import {
   Brain,
-<<<<<<<< HEAD:frontend/src/components/modules/scraper/IntelligenceSuiteModule.tsx
-========
   Radio,
   BarChart3,
   Settings,
   Video,
   ChevronLeft,
   ChevronRight,
->>>>>>>> origin/video:frontend/src/routes/dashboard.tsx
   Globe,
   FileText,
   Sparkles,
@@ -37,13 +35,13 @@ import {
   ShieldCheck,
   TrendingUp,
   Printer,
+  LogOut,
   Lock,
   PieChart as PieIcon,
   Activity,
   Flame,
   FileCheck2,
   Sliders,
-  Radio,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -65,6 +63,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+import { Logo } from "@/components/site/Chrome";
 import { FileUploadZone } from "@/components/scraper/FileUploadZone";
 import {
   DocumentInsightPanel,
@@ -80,8 +79,6 @@ import {
   type SWOTAnalysis,
   type TimelinePhase,
 } from "@/components/scraper/ReportComponents";
-<<<<<<<< HEAD:frontend/src/components/modules/scraper/IntelligenceSuiteModule.tsx
-========
 import { LeadRadarModule } from "@/components/modules/radar";
 import { VoiceFleetModule } from "@/components/modules/voice";
 import { VideoMeetingModule } from "@/components/modules/video";
@@ -98,12 +95,11 @@ export const Route = createFileRoute("/dashboard")({
   }),
   component: DashboardPage,
 });
->>>>>>>> origin/video:frontend/src/routes/dashboard.tsx
 
 const API_BASE = (import.meta.env["VITE_SCRAPER_API_BASE"] as string) || "http://localhost:8000";
 
 /* ─── Types ─── */
-export interface RecentReport {
+interface RecentReport {
   id: string;
   status: string;
   created_at: string;
@@ -147,7 +143,7 @@ interface Recommendation {
   timeframe?: string;
   action_steps?: string[];
 }
-export interface FullAnalysis {
+interface FullAnalysis {
   company_name: string;
   one_line_summary: string;
   industry: string;
@@ -178,7 +174,7 @@ export interface FullAnalysis {
   recommendations?: (Recommendation | string)[];
 }
 
-export interface ReportData {
+interface ReportData {
   id: string;
   status: "pending" | "parsing_docs" | "scraping" | "analyzing" | "done" | "failed";
   created_at: string;
@@ -192,7 +188,7 @@ function Panel({ children, className = "" }: { children: React.ReactNode; classN
   return <div className={`border border-ink bg-card min-w-0 overflow-hidden ${className}`}>{children}</div>;
 }
 
-export function getCleanReportTitle(r: RecentReport): string {
+function getCleanReportTitle(r: RecentReport): string {
   if (r.analysis?.company_name && r.analysis.company_name.trim()) {
     return r.analysis.company_name.trim();
   }
@@ -475,10 +471,12 @@ function ReportView({
   useEffect(() => {
     let iv: ReturnType<typeof setInterval>;
     let isSubscribed = true;
+    let notFoundRetries = 0;
     const fetch_ = async () => {
       try {
         const res = await fetch(`${API_BASE}/api/reports/${reportId}`);
         if (res.ok && isSubscribed) {
+          notFoundRetries = 0;
           const data: ReportData = await res.json();
           setReport(data);
           if (data.status === "done") {
@@ -489,6 +487,19 @@ function ReportView({
             }
           } else if (data.status === "failed") {
             clearInterval(iv);
+          }
+        } else if (res.status === 404 && isSubscribed) {
+          notFoundRetries++;
+          // If 404 persists for 3 consecutive polls (7.5s), stop polling to avoid flooding console
+          if (notFoundRetries >= 3) {
+            clearInterval(iv);
+            setReport({
+              id: reportId,
+              status: "failed",
+              input_urls: {},
+              created_at: new Date().toISOString(),
+              error_message: "Report record not found or previous session was interrupted. Please start a new analysis.",
+            } as any);
           }
         }
       } catch {}
@@ -1710,157 +1721,210 @@ function ReportView({
   );
 }
 
-/* ─── Intelligence Suite Module Wrapper ─── */
-export interface IntelligenceSuiteModuleProps {
-  view: "intake" | "report";
-  reportId: string | null;
-  recentReports: RecentReport[];
-  onReportCreated: (id: string) => void;
-  onNewAnalysis: () => void;
-  onSelectReport: (r: RecentReport) => void;
-  onNavigateModule: (moduleId: string) => void;
-  onReportFinished: (report: ReportData) => void;
-  onFetchRecents: () => void;
-}
+/* ─── MAIN DASHBOARD ─── */
+function DashboardPage() {
+  const navigate = useNavigate();
+  const { user, profile, session, signOut } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeNav, setActiveNav] = useState("intelligence");
+  const [voiceTargetLead, setVoiceTargetLead] = useState<any>(null);
+  const [reportId, setReportId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("reportId");
+    }
+    return null;
+  });
+  const [view, setView] = useState<"intake" | "loading" | "report">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("reportId")) return "report";
+    }
+    return "intake";
+  });
+  const [recentReports, setRecentReports] = useState<RecentReport[]>([]);
+  const [activeAnalysis, setActiveAnalysis] = useState<FullAnalysis | null>(null);
+  const [activeCompanyInfo, setActiveCompanyInfo] = useState<{ name: string; industry: string; score: number }>({
+    name: "",
+    industry: "",
+    score: 0,
+  });
+  const [time, setTime] = useState("--:--:--");
+  const [greeting, setGreeting] = useState<{ company?: string }>({});
 
-export function IntelligenceSuiteModule({
-  view,
-  reportId,
-  recentReports,
-  onReportCreated,
-  onNewAnalysis,
-  onSelectReport,
-  onNavigateModule,
-  onReportFinished,
-  onFetchRecents,
-}: IntelligenceSuiteModuleProps) {
+  // Module Unlocking State
+  const hasCompletedReport =
+    recentReports.some((r) => r.status === "done") || view === "report";
+
+  useEffect(() => {
+    const tick = () => setTime(new Date().toISOString().slice(11, 19));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (profile?.company_name) {
+        setActiveCompanyInfo((prev) => ({ ...prev, name: profile.company_name! }));
+      }
+      const stored = sessionStorage.getItem("vyaperi_onboarding");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setGreeting(parsed);
+        if (parsed.company) {
+          setActiveCompanyInfo((prev) => ({ ...prev, name: parsed.company }));
+        }
+      }
+    } catch {}
+    fetchRecents();
+  }, [user]);
+
+  const fetchRecents = async () => {
+    try {
+      const url = user?.id ? `${API_BASE}/api/reports?user_id=${user.id}` : `${API_BASE}/api/reports`;
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+      const res = await fetch(url, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setRecentReports(data);
+        const latestDone = data.find((r: any) => r.status === "done" && r.analysis?.company_name);
+        if (latestDone) {
+          setActiveCompanyInfo({
+            name: latestDone.analysis.company_name,
+            industry: latestDone.analysis.industry || "B2B Tech",
+            score: latestDone.analysis.opportunity_score || 88,
+          });
+          setActiveAnalysis(latestDone.analysis);
+        }
+      }
+    } catch {}
+  };
+
+  const handleNewAnalysis = () => {
+    setView("intake");
+    setReportId(null);
+    try {
+      window.history.replaceState(null, "", "/dashboard");
+    } catch {}
+  };
+
+  const handleReportCreated = (id: string) => {
+    setReportId(id);
+    setView("report");
+    try {
+      window.history.replaceState(null, "", `/dashboard?reportId=${id}`);
+    } catch {}
+    fetchRecents();
+  };
+
+  const handleReportFinished = (reportData: ReportData) => {
+    if (reportData.analysis) {
+      setActiveAnalysis(reportData.analysis);
+      setActiveCompanyInfo({
+        name: reportData.analysis.company_name,
+        industry: reportData.analysis.industry || "B2B Tech",
+        score: reportData.analysis.opportunity_score || 88,
+      });
+    }
+    fetchRecents();
+  };
+
+  const handleSelectReport = (r: RecentReport) => {
+    setReportId(r.id);
+    setView("report");
+    try {
+      window.history.replaceState(null, "", `/dashboard?reportId=${r.id}`);
+    } catch {}
+    if (r.analysis) {
+      setActiveAnalysis(r.analysis as FullAnalysis);
+      if (r.analysis.company_name) {
+        setActiveCompanyInfo({
+          name: r.analysis.company_name,
+          industry: r.analysis.industry || "B2B Tech",
+          score: r.analysis.opportunity_score || 88,
+        });
+      }
+    }
+  };
+
+  const handleNavigateModule = (moduleId: string) => {
+    setActiveNav(moduleId);
+  };
+
+  const navItems = MODULE_REGISTRY.map((mod) => ({
+    ...mod,
+    // Enable all modules as soon as any business report has finished
+    isUnlocked: mod.id === "intelligence" || hasCompletedReport,
+  }));
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="label-mono text-violet">/Intelligence Suite</span>
-            <span className="h-1.5 w-1.5 bg-lime live-dot" />
-            <span className="label-mono text-muted-foreground text-[10px]">
-              Multi-Source Commercial Engine · Active
-            </span>
+    <div className="min-h-screen bg-paper text-ink flex flex-col selection:bg-lime selection:text-ink">
+      {/* ── Top Bar ── */}
+      <header className="sticky top-0 z-50 border-b border-ink/20 bg-paper/95 backdrop-blur-md">
+        <div className="flex items-center justify-between px-4 py-3 gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="border border-ink/20 bg-secondary p-2 hover:border-violet transition-colors"
+            >
+              {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+            <Logo />
           </div>
-          <h1 className="font-display text-2xl font-extrabold leading-tight">
-            {view === "intake" ? "New Intelligence Analysis" : "Intelligence Report & Predictive Graphs"}
-          </h1>
-        </div>
-        {view !== "intake" && (
-          <button
-            onClick={onNewAnalysis}
-            className="label-mono border border-ink/25 bg-secondary px-4 py-2 hover:border-violet hover:text-violet transition-all flex items-center gap-2 text-xs"
-          >
-            <Plus className="w-3.5 h-3.5" /> New Analysis
-          </button>
-        )}
-      </div>
-
-      {view === "intake" ? (
-        <div className="grid gap-6 grid-cols-1 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <div className="min-w-0 space-y-4">
-            <Panel className="p-6 min-w-0">
-              <div className="flex items-center gap-2 label-mono text-violet font-bold mb-5 border-b border-ink/20 pb-3">
-                <Brain className="w-4 h-4" /> Intelligence Intake — Submit Company Assets
+          <div className="flex items-center gap-4">
+            {hasCompletedReport ? (
+              <div className="hidden sm:flex items-center gap-2 border border-lime/40 bg-lime/10 px-3 py-1 text-lime-700 dark:text-lime label-mono text-[10px] font-bold">
+                <Sparkles className="w-3 h-3" /> ALL MODULES UNLOCKED
               </div>
-              <ScraperIntakeForm onReportCreated={onReportCreated} />
-            </Panel>
-          </div>
+            ) : (
+              <div className="hidden sm:flex items-center gap-2 border border-ink/20 px-3 py-1 label-mono text-[10px] text-muted-foreground">
+                <Lock className="w-3 h-3" /> Finish 1 Report to Unlock All
+              </div>
+            )}
 
-          <div className="min-w-0 space-y-4">
-            <Panel className="min-w-0">
-              <div className="flex items-center justify-between p-4 border-b border-ink/20">
-                <div className="label-mono text-muted-foreground flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-violet" /> Recent Dossiers
+            {greeting.company && (
+              <span className="hidden md:block font-mono text-xs text-muted-foreground">
+                Workspace: <span className="text-ink font-bold">{greeting.company}</span>
+              </span>
+            )}
+            <div className="hidden sm:block border border-ink/20 px-3 py-1.5 font-mono text-[10px] text-muted-foreground">
+              <div>SYS.TIME</div>
+              <div className="text-ink">{time}</div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-1.5 w-1.5 bg-lime live-dot" />
+              <span className="label-mono text-muted-foreground text-[10px]">All Systems Operational</span>
+            </div>
+
+            {user && (
+              <div className="flex items-center gap-2 border-l border-ink/20 pl-3">
+                <div className="hidden lg:flex flex-col text-right">
+                  <span className="font-mono text-[10px] font-bold text-ink truncate max-w-[140px]">
+                    {profile?.full_name || user.email?.split("@")[0]}
+                  </span>
+                  <span className="font-mono text-[9px] text-muted-foreground truncate max-w-[140px]">
+                    {profile?.company_name || user.email}
+                  </span>
                 </div>
                 <button
-                  onClick={onFetchRecents}
-                  className="label-mono text-muted-foreground hover:text-violet transition-colors text-[10px]"
+                  type="button"
+                  onClick={async () => {
+                    await signOut();
+                    navigate({ to: "/login" });
+                  }}
+                  title="Sign Out of Supabase Workspace"
+                  className="border border-ink/20 bg-secondary/50 p-1.5 hover:border-danger hover:text-danger hover:bg-danger/10 transition-colors"
                 >
-                  Refresh
+                  <LogOut className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="divide-y divide-ink/10">
-                {recentReports.length > 0 ? (
-                  recentReports.slice(0, 6).map((r) => {
-                    const score = r.analysis?.opportunity_score;
-                    return (
-                      <button
-                        key={r.id}
-                        onClick={() => {
-                          onSelectReport(r);
-                        }}
-                        className="w-full text-left p-4 hover:bg-secondary/50 transition-colors group flex items-center justify-between gap-3 min-w-0 overflow-hidden"
-                      >
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <p className="font-display text-xs font-extrabold uppercase group-hover:text-violet transition-colors truncate block">
-                            {getCleanReportTitle(r)}
-                          </p>
-                          <p className="font-mono text-[10px] text-muted-foreground truncate block">
-                            {r.analysis?.one_line_summary || `Status: ${r.status}`}
-                          </p>
-                          <span
-                            className={`label-mono px-1.5 py-0.5 border text-[9px] ${
-                              r.status === "done"
-                                ? "text-lime-700 dark:text-lime border-lime/25 bg-lime/8"
-                                : r.status === "failed"
-                                ? "text-danger border-danger/25"
-                                : "text-violet border-violet/25 animate-pulse"
-                            }`}
-                          >
-                            {r.status}
-                          </span>
-                        </div>
-                        {score !== undefined && (
-                          <div className="shrink-0 text-right">
-                            <span className="font-display text-lg font-extrabold text-violet">{score}</span>
-                            <p className="label-mono text-muted-foreground text-[9px]">Score</p>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="p-8 text-center">
-                    <Search className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
-                    <p className="font-mono text-xs text-muted-foreground">No reports yet.</p>
-                  </div>
-                )}
-              </div>
-            </Panel>
-
-            {/* Engine Stats */}
-            <Panel className="p-4 space-y-3">
-              <span className="label-mono text-muted-foreground text-[10px]">Engine Capabilities</span>
-              <div className="grid grid-cols-2 gap-px bg-ink/10">
-                {[
-                  ["5+ Source Types", "Parsed simultaneously"],
-                  ["Predictive Graphs", "Recharts Visual Suite"],
-                  ["Instant Unlock", "Lead Radar & Voice Fleet"],
-                  ["Discrepancy Alerts", "Cross-source ground truth"],
-                ].map(([t, s]) => (
-                  <div key={t} className="bg-paper px-3 py-2.5">
-                    <p className="font-display text-xs font-extrabold uppercase">{t}</p>
-                    <p className="label-mono text-muted-foreground text-[9px]">{s}</p>
-                  </div>
-                ))}
-              </div>
-            </Panel>
+            )}
           </div>
         </div>
-<<<<<<<< HEAD:frontend/src/components/modules/scraper/IntelligenceSuiteModule.tsx
-      ) : reportId ? (
-        <ReportView
-          reportId={reportId}
-          onBack={onNewAnalysis}
-          onNavigateModule={onNavigateModule}
-          onReportFinished={onReportFinished}
-        />
-      ) : null}
-========
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -2133,7 +2197,6 @@ export function IntelligenceSuiteModule({
           </div>
         </main>
       </div>
->>>>>>>> origin/video:frontend/src/routes/dashboard.tsx
     </div>
   );
 }

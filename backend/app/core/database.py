@@ -61,6 +61,23 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_in_memory_reports: Dict[str, dict] = {}
+_in_memory_video_calls: Dict[str, dict] = {}
+
+
+def _ensure_uuid(val: Optional[str]) -> Optional[str]:
+    """Ensures string is a valid UUID string. Returns None if invalid or non-UUID."""
+    if not val:
+        return None
+    val_str = str(val).strip()
+    if not val_str:
+        return None
+    try:
+        return str(uuid.UUID(val_str))
+    except (ValueError, AttributeError):
+        return None
+
+
 async def init_db():
     """Verify Supabase database connectivity on application startup."""
     try:
@@ -68,6 +85,40 @@ async def init_db():
         logger.info(f"Supabase Client successfully initialized for: {SUPABASE_URL}")
     except Exception as e:
         logger.error(f"Failed to connect to Supabase: {e}")
+
+
+# ─────────────────────────── Profiles Operations ─────────────────────────
+
+async def get_profile(user_id: str) -> Optional[dict]:
+    """Fetch user profile from Supabase by user UUID."""
+    client = get_supabase()
+    clean_user_id = _ensure_uuid(user_id)
+    if not clean_user_id:
+        return None
+    try:
+        res = await asyncio.to_thread(
+            client.table("profiles").select("*").eq("id", clean_user_id).maybe_single().execute
+        )
+        return res.data if res else None
+    except Exception as e:
+        logger.warning(f"Error fetching profile for {user_id}: {e}")
+        return None
+
+
+async def get_profile_by_email(email: str) -> Optional[dict]:
+    """Fetch user profile from Supabase by user email."""
+    client = get_supabase()
+    clean_email = str(email).strip().lower()
+    if not clean_email:
+        return None
+    try:
+        res = await asyncio.to_thread(
+            client.table("profiles").select("*").eq("email", clean_email).maybe_single().execute
+        )
+        return res.data if res else None
+    except Exception as e:
+        logger.warning(f"Error fetching profile for email {email}: {e}")
+        return None
 
 
 # ─────────────────────────── Reports Operations ─────────────────────────
@@ -78,6 +129,19 @@ async def create_report(input_urls: dict, user_id: Optional[str] = None) -> str:
     now = _now()
     client = get_supabase()
 
+    # Immediately cache in memory so polling get_report works instantaneously
+    _in_memory_reports[report_id] = {
+        "id": report_id,
+        "input_urls": input_urls,
+        "status": "pending",
+        "raw_profile": None,
+        "analysis": None,
+        "error_message": None,
+        "created_at": now,
+        "updated_at": now,
+        "user_id": user_id,
+    }
+
     payload = {
         "id": report_id,
         "input_urls": input_urls,
@@ -85,22 +149,36 @@ async def create_report(input_urls: dict, user_id: Optional[str] = None) -> str:
         "created_at": now,
         "updated_at": now,
     }
-    if user_id:
-        payload["user_id"] = user_id
+    clean_user_id = _ensure_uuid(user_id)
+    if clean_user_id:
+        payload["user_id"] = clean_user_id
 
     try:
         await asyncio.to_thread(client.table("reports").insert(payload).execute)
     except Exception as e:
-        logger.warning(f"Error writing report to Supabase (check if table exists): {e}")
+        logger.warning(f"Error writing report to Supabase with user_id={clean_user_id}: {e}")
+        # Retry with user_id=None if foreign-key constraint or uuid format failed
+        if "user_id" in payload:
+            try:
+                payload["user_id"] = None
+                await asyncio.to_thread(client.table("reports").insert(payload).execute)
+                logger.info(f"Report {report_id} persisted in Supabase with user_id=None fallback.")
+            except Exception as e2:
+                logger.error(f"Fallback insert for report {report_id} also failed: {e2}")
+
     return report_id
 
 
 async def update_status(report_id: str, status: str, error_message: Optional[str] = None):
-    """Update report status and error message in Supabase."""
+    """Update report status and error message in Supabase and memory."""
     client = get_supabase()
     updates = {"status": status, "updated_at": _now()}
     if error_message is not None:
         updates["error_message"] = error_message
+
+    if report_id in _in_memory_reports:
+        _in_memory_reports[report_id].update(updates)
+
     try:
         await asyncio.to_thread(
             client.table("reports").update(updates).eq("id", report_id).execute
@@ -110,12 +188,16 @@ async def update_status(report_id: str, status: str, error_message: Optional[str
 
 
 async def update_raw_profile(report_id: str, raw_profile: dict):
-    """Store scraped and normalized business profile in Supabase."""
+    """Store scraped and normalized business profile in Supabase and memory."""
     client = get_supabase()
+    updates = {"raw_profile": raw_profile, "updated_at": _now()}
+    if report_id in _in_memory_reports:
+        _in_memory_reports[report_id].update(updates)
+
     try:
         await asyncio.to_thread(
             client.table("reports")
-            .update({"raw_profile": raw_profile, "updated_at": _now()})
+            .update(updates)
             .eq("id", report_id)
             .execute
         )
@@ -124,12 +206,16 @@ async def update_raw_profile(report_id: str, raw_profile: dict):
 
 
 async def update_analysis(report_id: str, analysis: dict):
-    """Store Groq intelligence analysis and mark report done in Supabase."""
+    """Store Groq intelligence analysis and mark report done in Supabase and memory."""
     client = get_supabase()
+    updates = {"analysis": analysis, "status": "done", "updated_at": _now()}
+    if report_id in _in_memory_reports:
+        _in_memory_reports[report_id].update(updates)
+
     try:
         await asyncio.to_thread(
             client.table("reports")
-            .update({"analysis": analysis, "status": "done", "updated_at": _now()})
+            .update(updates)
             .eq("id", report_id)
             .execute
         )
@@ -185,46 +271,65 @@ def _ensure_visual_intelligence(report: dict) -> tuple[dict, bool]:
 
 
 async def get_report(report_id: str) -> Optional[dict]:
-    """Fetch single intelligence report by ID from Supabase."""
+    """Fetch single intelligence report by ID from Supabase with in-memory fallback."""
     client = get_supabase()
     try:
         res = await asyncio.to_thread(
             client.table("reports").select("*").eq("id", report_id).maybe_single().execute
         )
-        if not res or not res.data:
-            return None
-        report = res.data
-        report, updated = _ensure_visual_intelligence(report)
-        if updated:
-            # Persist the enriched visual arrays back so future calls are instant
-            asyncio.create_task(update_analysis(report_id, report["analysis"]))
-        return report
+        if res and res.data:
+            report = res.data
+            report, updated = _ensure_visual_intelligence(report)
+            if updated:
+                # Persist the enriched visual arrays back so future calls are instant
+                asyncio.create_task(update_analysis(report_id, report["analysis"]))
+            _in_memory_reports[report_id] = report
+            return report
     except Exception as e:
         logger.warning(f"Error fetching report {report_id} from Supabase: {e}")
-        return None
+
+    # Fallback to in-memory report if PostgREST record is not yet visible or insert had failed
+    if report_id in _in_memory_reports:
+        rep = dict(_in_memory_reports[report_id])
+        rep, _ = _ensure_visual_intelligence(rep)
+        return rep
+
+    return None
 
 
 async def list_reports(user_id: Optional[str] = None, limit: int = 50) -> List[dict]:
-    """List recent intelligence reports from Supabase with user association and fallback."""
+    """List recent intelligence reports from Supabase with user association and in-memory fallback."""
     client = get_supabase()
+    clean_user_id = _ensure_uuid(user_id)
     try:
         query = client.table("reports").select("id, status, input_urls, analysis, raw_profile, created_at, updated_at, user_id")
-        if user_id:
-            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
+        if clean_user_id:
+            query = query.or_(f"user_id.eq.{clean_user_id},user_id.is.null")
         res = await asyncio.to_thread(
             query.order("created_at", desc=True).limit(limit).execute
         )
         raw_list = res.data or []
         enriched_list = []
+        seen_ids = set()
         for r in raw_list:
             enriched, updated = _ensure_visual_intelligence(r)
             if updated and r.get("id"):
                 asyncio.create_task(update_analysis(r["id"], enriched["analysis"]))
             enriched_list.append(enriched)
+            if r.get("id"):
+                seen_ids.add(r["id"])
+
+        # Also merge any active in-memory reports not yet in Supabase
+        for mid, mrep in _in_memory_reports.items():
+            if mid not in seen_ids:
+                rep_copy = dict(mrep)
+                rep_copy, _ = _ensure_visual_intelligence(rep_copy)
+                enriched_list.insert(0, rep_copy)
+
         return enriched_list
     except Exception as e:
         logger.warning(f"Error listing reports from Supabase: {e}")
-        return []
+        return list(_in_memory_reports.values())
 
 
 # ─────────────────────────── Voice Fleet Operations ───────────────────
@@ -269,13 +374,21 @@ async def create_voice_call(call_data: dict, user_id: Optional[str] = None) -> s
         "created_at": now,
         "updated_at": now,
     }
-    if user_id:
-        row["user_id"] = user_id
+    clean_user_id = _ensure_uuid(user_id)
+    if clean_user_id:
+        row["user_id"] = clean_user_id
 
     try:
         await asyncio.to_thread(client.table("voice_calls").insert(row).execute)
     except Exception as e:
-        logger.warning(f"Error inserting voice call into Supabase: {e}")
+        logger.warning(f"Error inserting voice call into Supabase with user_id={clean_user_id}: {e}")
+        if "user_id" in row:
+            try:
+                row["user_id"] = None
+                await asyncio.to_thread(client.table("voice_calls").insert(row).execute)
+                logger.info(f"Voice call {call_id} persisted in Supabase with user_id=None fallback.")
+            except Exception as e2:
+                logger.error(f"Fallback insert for voice call {call_id} also failed: {e2}")
     return call_id
 
 
@@ -323,10 +436,11 @@ async def list_voice_calls(
 ) -> List[dict]:
     """List recent voice calls with optional filtering and user scoping from Supabase."""
     client = get_supabase()
+    clean_user_id = _ensure_uuid(user_id)
     try:
         query = client.table("voice_calls").select("*")
-        if user_id:
-            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
+        if clean_user_id:
+            query = query.or_(f"user_id.eq.{clean_user_id},user_id.is.null")
         if direction and direction != "all":
             query = query.eq("direction", direction)
         if status and status != "all":
@@ -372,8 +486,9 @@ async def get_voice_stats(user_id: Optional[str] = None) -> dict:
 
     try:
         query = client.table("voice_calls").select("direction, status, duration_seconds, analysis, user_id")
-        if user_id:
-            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
+        clean_user_id = _ensure_uuid(user_id)
+        if clean_user_id:
+            query = query.or_(f"user_id.eq.{clean_user_id},user_id.is.null")
         res = await asyncio.to_thread(query.execute)
         rows = res.data or []
         stats["total_calls"] = len(rows)
@@ -509,20 +624,35 @@ async def create_video_call(call_data: dict, user_id: Optional[str] = None) -> s
         "created_at": now,
         "updated_at": now,
     }
-    if user_id:
-        row["user_id"] = user_id
-    elif call_data.get("user_id"):
-        row["user_id"] = call_data.get("user_id")
+    clean_user_id = _ensure_uuid(user_id) or _ensure_uuid(call_data.get("user_id"))
+    if clean_user_id:
+        row["user_id"] = clean_user_id
 
-    await asyncio.to_thread(client.table("video_calls").insert(row).execute)
+    # Cache in memory immediately so UI and webhook callbacks always find it
+    _in_memory_video_calls[call_id] = dict(row)
+
+    try:
+        await asyncio.to_thread(client.table("video_calls").insert(row).execute)
+    except Exception as e:
+        logger.warning(f"Error inserting video call into Supabase with user_id={clean_user_id}: {e}")
+        if "user_id" in row:
+            try:
+                row["user_id"] = None
+                await asyncio.to_thread(client.table("video_calls").insert(row).execute)
+                logger.info(f"Video call {call_id} persisted in Supabase with user_id=None fallback.")
+            except Exception as e2:
+                logger.error(f"Fallback insert for video call {call_id} also failed: {e2}")
     return call_id
 
 
 async def update_video_call(call_id: str, updates: dict):
-    """Update fields of an existing video call record in Supabase."""
+    """Update fields of an existing video call record in Supabase and memory."""
     client = get_supabase()
     clean_updates = dict(updates)
     clean_updates["updated_at"] = _now()
+
+    if call_id in _in_memory_video_calls:
+        _in_memory_video_calls[call_id].update(clean_updates)
 
     for k in ("briefing", "transcript", "analysis"):
         if k in clean_updates and isinstance(clean_updates[k], str):
@@ -531,44 +661,57 @@ async def update_video_call(call_id: str, updates: dict):
             except Exception:
                 pass
 
-    await asyncio.to_thread(
-        client.table("video_calls").update(clean_updates).eq("id", call_id).execute
-    )
+    try:
+        await asyncio.to_thread(
+            client.table("video_calls").update(clean_updates).eq("id", call_id).execute
+        )
+    except Exception as e:
+        logger.warning(f"Error updating video call {call_id} in Supabase: {e}")
 
 
 async def get_video_call(call_id: str) -> Optional[dict]:
-    """Fetch single video call by ID from Supabase."""
+    """Fetch single video call by ID from Supabase with in-memory fallback."""
     client = get_supabase()
     try:
         res = await asyncio.to_thread(
             client.table("video_calls").select("*").eq("id", call_id).maybe_single().execute
         )
-        return res.data if res else None
+        if res and res.data:
+            _in_memory_video_calls[call_id] = res.data
+            return res.data
     except Exception as e:
         logger.warning(f"Error fetching video call {call_id} from Supabase: {e}")
-        return None
+
+    return _in_memory_video_calls.get(call_id)
 
 
 async def list_video_calls(
     user_id: Optional[str] = None,
     limit: int = 100,
 ) -> List[dict]:
-    """List recent video calls for a user from Supabase, newest first."""
+    """List recent video calls for a user from Supabase with in-memory fallback."""
     client = get_supabase()
+    clean_user_id = _ensure_uuid(user_id)
     try:
         query = client.table("video_calls").select("*")
-        if user_id:
-            query = query.eq("user_id", user_id)
+        if clean_user_id:
+            query = query.eq("user_id", clean_user_id)
         query = query.order("created_at", desc=True).limit(limit)
         res = await asyncio.to_thread(query.execute)
-        return res.data or []
+        if res and res.data:
+            return res.data
     except Exception as e:
         logger.warning(f"Error listing video calls from Supabase: {e}")
-        return []
+
+    # In-memory fallback
+    calls = list(_in_memory_video_calls.values())
+    if clean_user_id:
+        calls = [c for c in calls if str(c.get("user_id") or "") == clean_user_id]
+    return calls[:limit]
 
 
 async def get_video_call_by_tavus_id(tavus_conversation_id: str) -> Optional[dict]:
-    """Fetch single video call by Tavus conversation ID from Supabase."""
+    """Fetch single video call by Tavus conversation ID from Supabase with in-memory fallback."""
     client = get_supabase()
     try:
         res = await asyncio.to_thread(
@@ -578,10 +721,15 @@ async def get_video_call_by_tavus_id(tavus_conversation_id: str) -> Optional[dic
             .maybe_single()
             .execute
         )
-        return res.data if res else None
+        if res and res.data:
+            return res.data
     except Exception as e:
         logger.warning(
             f"Error fetching video call with tavus_conversation_id '{tavus_conversation_id}' from Supabase: {e}"
         )
-        return None
+
+    for c in _in_memory_video_calls.values():
+        if c.get("tavus_conversation_id") == tavus_conversation_id:
+            return c
+    return None
 

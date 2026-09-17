@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { useGoogleLogin } from "@react-oauth/google";
 import { supabase, isSupabaseConfigured } from "./supabase";
 
 export interface UserProfile {
@@ -88,13 +89,99 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Helper to sync Google user with FastAPI /api/auth/me (resolving real Supabase UUID & profile)
+  const syncGoogleUserWithBackend = async (token: string, userInfo: any) => {
+    try {
+      const API_BASE = (import.meta.env["VITE_SCRAPER_API_BASE"] as string) || "http://localhost:8000";
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const resolvedId = data.id || userInfo.sub;
+        const resolvedProfile: UserProfile = data.profile || {
+          id: resolvedId,
+          email: data.email || userInfo.email,
+          full_name: data.user_metadata?.full_name || data.user_metadata?.name || userInfo.name,
+          company_name: data.user_metadata?.company_name || "",
+          industry: data.user_metadata?.industry || "",
+          avatar_url: data.user_metadata?.picture || userInfo.picture,
+          role: "owner",
+          onboarding_completed: true,
+        };
+
+        const resolvedUser = {
+          id: resolvedId,
+          email: data.email || userInfo.email,
+          user_metadata: {
+            full_name: resolvedProfile.full_name,
+            company_name: resolvedProfile.company_name,
+            industry: resolvedProfile.industry,
+            picture: resolvedProfile.avatar_url,
+            onboarding_completed: true,
+          },
+        } as unknown as User;
+
+        setUser(resolvedUser);
+        setSession({ access_token: token } as unknown as Session);
+        setProfile(resolvedProfile);
+        setLoading(false);
+        return;
+      }
+    } catch (e) {
+      console.warn("Could not sync Google user with backend:", e);
+    }
+
+    // Offline / fallback if backend cannot be reached
+    const fallbackUser = {
+      id: userInfo.sub,
+      email: userInfo.email,
+      user_metadata: {
+        full_name: userInfo.name,
+        picture: userInfo.picture,
+        onboarding_completed: true,
+      },
+    } as unknown as User;
+    setUser(fallbackUser);
+    setSession({ access_token: token } as unknown as Session);
+    setProfile({
+      id: userInfo.sub,
+      email: userInfo.email,
+      full_name: userInfo.name,
+      avatar_url: userInfo.picture,
+      role: "owner",
+      onboarding_completed: true,
+    });
+    setLoading(false);
+  };
+
   useEffect(() => {
-    // Initial session load
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user);
+    // Check if user previously logged in via direct Google OAuth
+    const authProvider = localStorage.getItem("vyepari_x_auth_provider");
+    const storedToken = localStorage.getItem("vyepari_x_auth_token");
+    const storedGoogleUser = localStorage.getItem("vyepari_x_google_user");
+
+    if (authProvider === "google" && storedToken && storedGoogleUser) {
+      try {
+        const userInfo = JSON.parse(storedGoogleUser);
+        syncGoogleUserWithBackend(storedToken, userInfo);
+        return;
+      } catch (e) {
+        console.warn("Could not parse cached Google user info:", e);
+      }
+    }
+
+    // Initial Supabase session load
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      if (localStorage.getItem("vyepari_x_auth_provider") === "google") {
+        return;
+      }
+      if (existingSession) {
+        setSession(existingSession);
+        setUser(existingSession?.user ?? null);
+        if (existingSession?.user) {
+          fetchProfile(existingSession.user);
+        }
       }
       setLoading(false);
     });
@@ -103,6 +190,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (localStorage.getItem("vyepari_x_auth_provider") === "google") {
+        return;
+      }
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (newSession?.user) {
@@ -118,22 +208,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Direct Google OAuth flow via @react-oauth/google (bypasses Supabase provider)
+  const loginWithGoogle = useGoogleLogin({
+    onSuccess: async (codeResponse) => {
+      try {
+        const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${codeResponse.access_token}` },
+        });
+        const userInfo = await res.json();
+
+        localStorage.setItem("vyepari_x_auth_token", codeResponse.access_token);
+        localStorage.setItem("vyepari_x_auth_provider", "google");
+        localStorage.setItem("vyepari_x_google_user", JSON.stringify(userInfo));
+
+        await syncGoogleUserWithBackend(codeResponse.access_token, userInfo);
+      } catch (err) {
+        console.error("Failed to fetch Google profile info:", err);
+      }
+    },
+    onError: (errorResponse) => {
+      console.error("Google authentication failed:", errorResponse);
+    },
+  });
+
   const signInWithGoogle = async () => {
-    const origin = window.location.origin;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${origin}/dashboard`,
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-      },
-    });
-    return { error };
+    loginWithGoogle();
+    return { error: null };
   };
 
   const signInWithEmail = async (email: string, password: string) => {
+    localStorage.removeItem("vyepari_x_auth_provider");
+    localStorage.removeItem("vyepari_x_google_user");
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -153,6 +258,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     metadata?: { full_name?: string; company_name?: string; industry?: string }
   ) => {
+    localStorage.removeItem("vyepari_x_auth_provider");
+    localStorage.removeItem("vyepari_x_google_user");
     const origin = window.location.origin;
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
@@ -246,11 +353,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {}
     setUser(null);
     setSession(null);
     setProfile(null);
     localStorage.removeItem("vyepari_x_auth_token");
+    localStorage.removeItem("vyepari_x_auth_provider");
+    localStorage.removeItem("vyepari_x_google_user");
   };
 
   return (

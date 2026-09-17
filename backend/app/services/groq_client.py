@@ -415,7 +415,7 @@ def analyze_single_document(doc_name: str, doc_type: str, content_text: str) -> 
                     {"role": "user", "content": user_msg},
                 ],
                 temperature=0.1,
-                max_tokens=1000,
+                max_tokens=3000,
                 response_format={"type": "json_object"},
             )
             raw = _strip_json_fences(resp.choices[0].message.content or "")

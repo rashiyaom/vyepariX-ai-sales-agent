@@ -14,6 +14,10 @@ import { ThemeProvider } from "@/components/app/theme";
 import { AmbientAudioPlayer } from "@/components/app/ambient-audio";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
+const GOOGLE_CLIENT_ID =
+  (import.meta.env["VITE_GOOGLE_CLIENT_ID"] as string) ||
+  "391009136971-gf8l99nmb21ed49bj621ts1o1cs4f4kn.apps.googleusercontent.com";
+
 import appCss from "../styles.css?url";
 import { reportError } from "../lib/error-reporting";
 
@@ -138,14 +142,14 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID"}>
+      <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <AuthProvider>
           <ThemeProvider>
             <LangProvider>
-            {/* Global Ambient Audio Track for Spark.mp3 across all routes */}
-            <AmbientAudioPlayer />
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
+              {/* Global Ambient Audio Track for Spark.mp3 across all routes */}
+              <AmbientAudioPlayer />
+              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              <Outlet />
             </LangProvider>
           </ThemeProvider>
         </AuthProvider>

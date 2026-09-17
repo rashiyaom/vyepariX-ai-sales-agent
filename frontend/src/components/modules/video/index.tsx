@@ -105,7 +105,7 @@ export function VideoMeetingModule({
   // Report Selection & Launch State
   const [selectedReportId, setSelectedReportId] = useState<string | null>(() => {
     const doneReports = reports.filter((r) => r.status === "done");
-    return doneReports.length > 0 ? doneReports[0].id : null;
+    return doneReports.length > 0 ? (doneReports[0]?.id ?? null) : null;
   });
   const [fallbackReports, setFallbackReports] = useState<ReportItem[]>([]);
   const [startingMeeting, setStartingMeeting] = useState(false);
@@ -170,7 +170,7 @@ export function VideoMeetingModule({
 
   // Keep selectedReportId in sync when completed reports change
   useEffect(() => {
-    if (!selectedReportId && completedReports.length > 0) {
+    if (!selectedReportId && completedReports.length > 0 && completedReports[0]?.id) {
       setSelectedReportId(completedReports[0].id);
     }
   }, [completedReports, selectedReportId]);

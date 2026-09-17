@@ -27,6 +27,7 @@ import logging
 import os
 import re
 import textwrap
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -146,29 +147,43 @@ def _embed_texts_sync(texts: list, task_type: str = "RETRIEVAL_DOCUMENT") -> lis
     batch_size = 100  # Gemini batch limit
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
-        try:
-            result = client.models.embed_content(
-                model=GEMINI_EMBED_MODEL,
-                contents=batch,
-                config={"task_type": task_type},
-            )
-        except Exception as e:
-            err_str = str(e).lower()
-            # Detect quota / auth failures explicitly
-            if any(kw in err_str for kw in (
-                "quota", "rate limit", "resource_exhausted", "429",
-                "api_key", "permission", "unauthenticated", "403", "401",
-            )):
-                raise RAGQuotaError(
-                    f"[RAG] Gemini embedding quota/auth failure — analysis STOPPED. "
-                    f"Do not fall back to raw-text synthesis. Error: {e}"
-                ) from e
-            raise RuntimeError(
-                f"[RAG] Gemini embedding unexpected error: {e}"
-            ) from e
+        max_retries = 3
+        result = None
+        for attempt in range(max_retries):
+            try:
+                result = client.models.embed_content(
+                    model=GEMINI_EMBED_MODEL,
+                    contents=batch,
+                    config={"task_type": task_type},
+                )
+                break
+            except Exception as e:
+                err_str = str(e).lower()
+                is_rate_limit = any(kw in err_str for kw in ("429", "resource_exhausted", "rate limit"))
+                if is_rate_limit and attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 3
+                    logger.warning(
+                        f"[RAG] Gemini embedding rate limit hit (429). Retrying in {wait_time}s (attempt {attempt+1}/{max_retries})..."
+                    )
+                    time.sleep(wait_time)
+                    continue
 
-        for emb in result.embeddings:
-            vectors.append(emb.values)
+                # Detect quota / auth failures explicitly
+                if any(kw in err_str for kw in (
+                    "quota", "rate limit", "resource_exhausted", "429",
+                    "api_key", "permission", "unauthenticated", "403", "401",
+                )):
+                    raise RAGQuotaError(
+                        f"[RAG] Gemini embedding quota/auth failure — analysis STOPPED. "
+                        f"Do not fall back to raw-text synthesis. Error: {e}"
+                    ) from e
+                raise RuntimeError(
+                    f"[RAG] Gemini embedding unexpected error: {e}"
+                ) from e
+
+        if result and hasattr(result, "embeddings"):
+            for emb in result.embeddings:
+                vectors.append(emb.values)
 
     return vectors
 
@@ -260,22 +275,95 @@ async def ingest_document(
 async def ingest_scraped_pages(report_id: str, pages: list) -> int:
     """
     Ingest scraper page dicts (title, text, url keys).
+    Batches top pages together to minimize Gemini API calls and prevent rate limiting.
     Propagates RAGQuotaError upward — callers must handle it explicitly.
     """
-    total = 0
+    if not pages:
+        return 0
+
+    # Rank and select top informative pages (homepage, pricing, products, solutions, about)
+    ranked_pages = []
     for page in pages:
+        text = (page.get("text") or page.get("content") or "").strip()
+        if len(text) < 50:
+            continue
+        url = (page.get("url") or "").lower()
+        score = len(text)
+        if any(kw in url for kw in ("pricing", "feature", "product", "solution", "about", "contact")):
+            score += 5000
+        ranked_pages.append((score, page))
+
+    ranked_pages.sort(key=lambda x: x[0], reverse=True)
+    selected_pages = [p for _, p in ranked_pages[:8]]  # Top 8 most valuable pages
+
+    # Collect all chunks across selected pages
+    all_chunks_data = []
+    for page in selected_pages:
         text = page.get("text") or page.get("content") or ""
         title = page.get("title") or page.get("url") or "Web Page"
         url = page.get("url") or ""
         source = f"{title} ({url})"[:120] if url else title[:120]
-        # RAGQuotaError propagates — RAGIngestError is non-fatal per-page
-        try:
-            total += await ingest_document(report_id, source, "website", text)
-        except RAGQuotaError:
-            raise  # bubble up immediately
-        except RAGIngestError as e:
-            logger.error(f"[RAG] Page ingest failed (non-quota), skipping page: {e}")
-    return total
+        chunks = chunk_text(text)
+        for i, chunk in enumerate(chunks):
+            all_chunks_data.append({
+                "source": source,
+                "type": "website",
+                "chunk_idx": i,
+                "text": chunk,
+            })
+
+    if not all_chunks_data:
+        return 0
+
+    # Cap total chunks to 80 (well within Gemini batch limits)
+    all_chunks_data = all_chunks_data[:80]
+    texts_to_embed = [c["text"] for c in all_chunks_data]
+
+    logger.info(
+        f"[RAG] Batch-embedding {len(texts_to_embed)} chunks across {len(selected_pages)} pages via Gemini..."
+    )
+    vectors = await _embed_texts_async(texts_to_embed, task_type="RETRIEVAL_DOCUMENT")
+
+    if len(vectors) != len(all_chunks_data):
+        raise RAGIngestError(
+            f"[RAG] Vector count mismatch ({len(vectors)} vs {len(all_chunks_data)}) during batch ingest"
+        )
+
+    try:
+        index = _get_pinecone_index()
+        namespace = _collection_name(report_id)
+
+        vectors_to_upsert = []
+        for i, c in enumerate(all_chunks_data):
+            safe_id = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", f"web_{c['source'][:30]}_{c['chunk_idx']}_{i}")[:512]
+            vectors_to_upsert.append({
+                "id": safe_id,
+                "values": vectors[i],
+                "metadata": {
+                    "source": c["source"],
+                    "type": c["type"],
+                    "chunk_idx": c["chunk_idx"],
+                    "text": c["text"],
+                },
+            })
+
+        batch_size = 100
+        for i in range(0, len(vectors_to_upsert), batch_size):
+            index.upsert(
+                vectors=vectors_to_upsert[i : i + batch_size],
+                namespace=namespace,
+            )
+
+        logger.info(
+            f"[RAG] Successfully ingested {len(vectors_to_upsert)} chunks across {len(selected_pages)} pages "
+            f"in a single batch → namespace '{namespace}'"
+        )
+        return len(vectors_to_upsert)
+
+    except (RAGQuotaError, RAGIngestError):
+        raise
+    except Exception as e:
+        raise RAGIngestError(f"[RAG] Pinecone batch upsert failed: {e}") from e
 
 
 async def ingest_processed_docs(report_id: str, processed_docs: list) -> int:

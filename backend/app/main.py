@@ -12,7 +12,14 @@ import asyncio
 import json
 import logging
 import os
+import sys
 import time
+
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    except Exception:
+        pass
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -31,6 +38,7 @@ from app.services import scraper
 from app.services import data_engine
 from app.services import rag_engine
 from app.routers import voice_router
+from app.routers import video_router
 from app.services.search.router import get_search_router
 from config.domain_trust import classify_and_filter
 
@@ -68,9 +76,13 @@ app.add_middleware(
 # Mount Voice Fleet Router
 app.include_router(voice_router.router, prefix="/api/voice", tags=["Voice Fleet"])
 
-# Also expose Vapi & Sarvam Webhooks and Outbound at root path level for compatibility
+# Mount Video Sales Agent Router
+app.include_router(video_router.router, prefix="/api/video", tags=["Video Sales Agent"])
+
+# Also expose Vapi, Sarvam & Tavus Webhooks and Outbound at root path level for compatibility
 app.add_api_route("/webhook/vapi/custom-voice", voice_router.vapi_custom_voice_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
 app.add_api_route("/webhook/vapi", voice_router.vapi_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
+app.add_api_route("/webhook/tavus", video_router.tavus_webhook, methods=["POST"], tags=["Video Sales Agent Webhook"])
 app.add_api_route("/sarvam/webhook", voice_router.sarvam_webhook, methods=["POST"], tags=["Sarvam Webhook"])
 app.add_api_route("/call/outbound", voice_router.direct_outbound_call, methods=["POST"], tags=["Sarvam Outbound"])
 
@@ -164,6 +176,31 @@ async def register_user(payload: RegisterRequest):
         logger.error(f"Error provisioning user in Supabase: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
+
+@app.get("/api/auth/me", tags=["Authentication"])
+async def get_current_user_profile(
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Returns current authenticated user profile and Supabase UUID.
+    Works with both Supabase JWT and Google OAuth bearer tokens.
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    auth_user = await auth_middleware.get_current_user(authorization)
+    if not auth_user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    profile = await db.get_profile(auth_user.id)
+    if not profile and auth_user.email:
+        profile = await db.get_profile_by_email(auth_user.email)
+
+    return {
+        "id": auth_user.id,
+        "email": auth_user.email,
+        "user_metadata": auth_user.user_metadata,
+        "profile": profile,
+    }
 
 
 # ─────────────────────────── Request Schemas ────────────────────────────
@@ -334,19 +371,11 @@ async def run_pipeline(
                 f"({rag_web_chunks + rag_doc_chunks} total)"
             )
         except rag_engine.RAGQuotaError as quota_err:
-            # HARD STOP — quota/auth failure means the RAG pipeline is broken.
-            # Failing the report here is intentional: a silent fallback would hide
-            # degraded output quality and burn Gemini quota on re-runs.
-            logger.error(
-                f"[{report_id}] RAG QUOTA/AUTH FAILURE — analysis aborted. "
-                f"Check GEMINI_API_KEY and daily quota. Error: {quota_err}"
+            logger.warning(
+                f"[{report_id}] Gemini embedding rate limit reached ({quota_err}). "
+                "Continuing with direct full-profile synthesis via Groq Llama 3."
             )
-            await db.update_status(
-                report_id,
-                "failed",
-                f"RAG embedding quota/auth error: {quota_err}. Check GEMINI_API_KEY.",
-            )
-            return
+            rag_ingest_ok = False
         except rag_engine.RAGIngestError as ingest_err:
             # Non-quota ChromaDB failure — log at ERROR, partial ingest may have succeeded.
             logger.error(
@@ -423,16 +452,11 @@ async def run_pipeline(
                     f"{len(profile_md)}-char profile)."
                 )
             except rag_engine.RAGQuotaError as quota_err:
-                # HARD STOP — quota failure at retrieve time is equally fatal
-                logger.error(
-                    f"[{report_id}] RAG QUOTA/AUTH FAILURE at retrieval — analysis aborted. Error: {quota_err}"
+                logger.warning(
+                    f"[{report_id}] RAG retrieval rate limit reached ({quota_err}). "
+                    "Falling through to direct profile synthesis."
                 )
-                await db.update_status(
-                    report_id,
-                    "failed",
-                    f"RAG retrieval quota/auth error: {quota_err}. Check GEMINI_API_KEY.",
-                )
-                return
+                rag_context = ""
             except rag_engine.RAGRetrieveError as retrieve_err:
                 # Non-quota retrieval error — explicitly logged at ERROR, then falls
                 # through to direct profile synthesis (NOT silent — caller sees it).
@@ -478,14 +502,16 @@ async def create_report(
     authorization: Optional[str] = Header(None),
     files: List[UploadFile] = File(default=[]),
 ):
-    resolved_user_id = user_id
-    if not resolved_user_id and authorization:
+    resolved_user_id = None
+    if authorization:
         try:
             auth_user = await auth_middleware.get_current_user(authorization)
-            if auth_user:
+            if auth_user and auth_user.id:
                 resolved_user_id = auth_user.id
         except Exception:
             pass
+    if not resolved_user_id and user_id:
+        resolved_user_id = user_id
 
     clean_other_links: list[str] = []
     if other_links:
@@ -566,14 +592,16 @@ async def list_reports(
     user_id: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
 ):
-    resolved_user_id = user_id
-    if not resolved_user_id and authorization:
+    resolved_user_id = None
+    if authorization:
         try:
             auth_user = await auth_middleware.get_current_user(authorization)
-            if auth_user:
+            if auth_user and auth_user.id:
                 resolved_user_id = auth_user.id
         except Exception:
             pass
+    if not resolved_user_id and user_id:
+        resolved_user_id = user_id
     return await db.list_reports(user_id=resolved_user_id, limit=50)
 
 
