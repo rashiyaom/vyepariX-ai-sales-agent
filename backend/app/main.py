@@ -68,9 +68,31 @@ app.add_middleware(
 # Mount Voice Fleet Router
 app.include_router(voice_router.router, prefix="/api/voice", tags=["Voice Fleet"])
 
-# Also expose Vapi Webhooks at root path level for Vapi server URL compatibility
+# Also expose Vapi & Sarvam Webhooks and Outbound at root path level for compatibility
 app.add_api_route("/webhook/vapi/custom-voice", voice_router.vapi_custom_voice_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
 app.add_api_route("/webhook/vapi", voice_router.vapi_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
+app.add_api_route("/sarvam/webhook", voice_router.sarvam_webhook, methods=["POST"], tags=["Sarvam Webhook"])
+app.add_api_route("/call/outbound", voice_router.direct_outbound_call, methods=["POST"], tags=["Sarvam Outbound"])
+
+
+# ─────────────────────────── Calls Compatibility Endpoints ───────────────
+
+@app.get("/api/calls", tags=["Calls Compatibility"])
+async def list_calls_compat():
+    """Compatibility endpoint matching zip backend, backed by project Supabase database."""
+    return await db.list_voice_calls(limit=100)
+
+
+@app.get("/api/calls/{call_id}", tags=["Calls Compatibility"])
+async def get_call_compat(call_id: str):
+    """Compatibility endpoint matching zip backend, returning call & turns from Supabase."""
+    call = await db.get_voice_call(call_id)
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    return {
+        "call": call,
+        "turns": call.get("transcript") or [],
+    }
 
 # ─────────────────────────── Supabase Auth Provisioning ─────────────────
 
