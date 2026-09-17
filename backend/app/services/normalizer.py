@@ -169,6 +169,9 @@ def build_profile(
             "doc_type": ftype,
             "size_kb": fsize_kb,
             "error": err,
+            "source": doc.get("source", "user_upload"),
+            "extraction_method": doc.get("extraction_method"),
+            "confidence": doc.get("confidence", 1.0 if not err else 0.0),
             "content": _truncate_text(content, per_doc_quota) if not err else f"(Error: {err})",
         }
         formatted_docs.append(doc_entry)
@@ -225,7 +228,15 @@ def profile_to_markdown(profile: dict) -> str:
             fname = doc.get("filename", f"Doc_{i}")
             ftype = doc.get("doc_type", "doc").upper()
             content = doc.get("content", "")
-            lines.append(f"\n### >>> [DOCUMENT {i} OF {len(docs)}]: {fname} (Type: {ftype})")
+            method = doc.get("extraction_method")
+            conf = doc.get("confidence")
+            meta_parts = []
+            if method:
+                meta_parts.append(f"extraction={method}")
+            if conf is not None:
+                meta_parts.append(f"confidence={conf:.2f}")
+            meta_str = f" | {' | '.join(meta_parts)}" if meta_parts else ""
+            lines.append(f"\n### >>> [DOCUMENT {i} OF {len(docs)}]: {fname} (Type: {ftype}{meta_str})")
             lines.append(content)
             lines.append(f"--- END OF DOCUMENT {i} ({fname}) ---\n")
 
