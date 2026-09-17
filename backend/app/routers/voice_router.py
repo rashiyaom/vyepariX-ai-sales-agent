@@ -318,8 +318,14 @@ async def get_call_details(call_id: str):
     if not call:
         raise HTTPException(status_code=404, detail="Call record not found")
 
-    # If call was placed via live Vapi and is still active, sync latest status & transcripts
-    if call.get("vapi_call_id") and call.get("status") in ("queued", "in-progress", "ringing"):
+    # If call was placed via live Vapi (not Sarvam) and is still active, sync latest status & transcripts
+    vapi_id = call.get("vapi_call_id")
+    if (
+        vapi_id
+        and not str(vapi_id).startswith("sarvam_")
+        and str(vapi_id) != str(call_id)
+        and call.get("status") in ("queued", "in-progress", "ringing")
+    ):
         try:
             synced = await voice_engine.sync_vapi_call_status(call_id)
             if synced:

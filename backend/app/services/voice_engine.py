@@ -62,6 +62,7 @@ def _now_iso() -> str:
 
 async def get_credentials() -> dict:
     """Retrieve Vapi and Twilio keys from environment or SQLite settings."""
+    load_dotenv(override=True)
     db_settings = await db.get_voice_settings()
     vapi_key = db_settings.get("vapi_api_key") or os.getenv("VAPI_API_KEY", "")
     phone_number_id = db_settings.get("vapi_phone_number_id") or os.getenv("VAPI_PHONE_NUMBER_ID", "")

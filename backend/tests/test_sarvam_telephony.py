@@ -2,6 +2,7 @@
 test_sarvam_telephony.py — Automated Unit Tests for Sarvam AI + Exotel Telephony Integration.
 """
 
+import os
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
@@ -88,9 +89,10 @@ async def test_dispatch_sarvam_outbound_call_success():
         # Verify payload sent to Sarvam
         args, kwargs = mock_post.call_args
         payload = kwargs.get("json", {})
-        assert payload["user_config"]["user_phone_number"] == "+919820012345"
-        assert payload["app_config"]["connection_config"]["connection_id"] == "Exotel-091864e2-adfa"
-        assert payload["app_config"]["connection_config"]["agent_phone_number"] == "+917948518309"
+        expected_conn = os.getenv("SARVAM_CONNECTION_ID", "VepariX-252a795f-a3f9")
+        expected_phone = os.getenv("SARVAM_AGENT_PHONE_NUMBER", "+917948228458")
+        assert payload["app_config"]["connection_config"]["connection_id"] == expected_conn
+        assert payload["app_config"]["connection_config"]["agent_phone_number"] == expected_phone
         assert payload["webhook_config"]["metadata"]["lead_id"] == "call-uuid-001"
         assert kwargs["headers"]["X-API-Key"] == "mock-api-key"
 

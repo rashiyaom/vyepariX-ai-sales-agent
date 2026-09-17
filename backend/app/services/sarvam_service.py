@@ -11,6 +11,7 @@ import wave
 import base64
 import logging
 from typing import Optional, Tuple
+from dotenv import load_dotenv
 import httpx
 
 logger = logging.getLogger("vyepari.sarvam")
@@ -37,11 +38,13 @@ _AUDIO_CACHE: dict[str, dict] = {}
 
 def get_sarvam_api_key() -> str:
     """Retrieve Sarvam API key from env or fallback."""
+    load_dotenv(override=True)
     return (os.getenv("SARVAM_API_KEY") or os.getenv("SARVAM_TTS_API_KEY", "")).strip()
 
 
 def get_sarvam_tts_api_key() -> str:
     """Retrieve Sarvam TTS API key (prioritizing dedicated TTS key if defined)."""
+    load_dotenv(override=True)
     return (os.getenv("SARVAM_TTS_API_KEY") or os.getenv("SARVAM_API_KEY", "")).strip()
 
 
@@ -297,16 +300,16 @@ async def dispatch_sarvam_outbound_call(
 
     sarvam_url = os.getenv(
         "SARVAM_OUTBOUND_URL",
-        "https://apps.sarvam.ai/api/outbounds/v1/orgs/01a089d7-b92a-7b14-97f2-d19569e2fd3d/workspaces/01a089d7-b931-7edf-876a-57392fd279c5/outbounds"
+        "https://apps.sarvam.ai/api/outbounds/v1/orgs/01a09649-1638-78ad-aa1b-3f931d5fe076/workspaces/01a09649-163e-7025-b065-8cc04b34e1ef/outbounds"
     )
-    app_id = os.getenv("SARVAM_APP_ID", "VyaperiX-21a49353-7546")
+    app_id = os.getenv("SARVAM_APP_ID", "vepariX1-a2091c40-a905")
     try:
-        app_version = int(os.getenv("SARVAM_APP_VERSION", "5"))
+        app_version = int(os.getenv("SARVAM_APP_VERSION", "2"))
     except ValueError:
-        app_version = 5
+        app_version = 2
 
-    connection_id = os.getenv("SARVAM_CONNECTION_ID", "Exotel-091864e2-adfa")
-    agent_phone = os.getenv("SARVAM_AGENT_PHONE_NUMBER", "+917948518309")
+    connection_id = os.getenv("SARVAM_CONNECTION_ID", "VepariX-252a795f-a3f9")
+    agent_phone = os.getenv("SARVAM_AGENT_PHONE_NUMBER", "+917948228458")
     
     public_base_url = (
         os.getenv("PUBLIC_BASE_URL", "")
@@ -356,6 +359,8 @@ async def dispatch_sarvam_outbound_call(
             },
             "agent_variables": {
                 "call_summary": call_summary,
+                "callback_time": "N/A",
+                "disposition": "pending",
                 "gender": "N/A",
                 "user_name": customer_name or "N/A",
             },
