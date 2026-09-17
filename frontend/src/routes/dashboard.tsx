@@ -1740,6 +1740,8 @@ function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
+  const userId = user?.id;
+
   useEffect(() => {
     try {
       if (profile?.company_name) {
@@ -1755,11 +1757,12 @@ function DashboardPage() {
       }
     } catch {}
     fetchRecents();
-  }, [user]);
+  }, [userId, profile]);
 
   const fetchRecents = async () => {
     try {
-      const url = user?.id ? `${API_BASE}/api/reports?user_id=${user.id}` : `${API_BASE}/api/reports`;
+      const validUserId = user?.id && user.id !== "undefined" && user.id !== "null" ? user.id : null;
+      const url = validUserId ? `${API_BASE}/api/reports?user_id=${encodeURIComponent(validUserId)}` : `${API_BASE}/api/reports`;
       const headers: Record<string, string> = {};
       if (session?.access_token) {
         headers["Authorization"] = `Bearer ${session.access_token}`;

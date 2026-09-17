@@ -16,10 +16,10 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Header, Query, Request, Response
 from pydantic import BaseModel, Field
 
-import database as db
-import voice_engine
-import sarvam_service
-import auth_middleware
+from app.core import database as db
+from app.services import voice_engine
+from app.services import sarvam_service
+from app.core import auth_middleware
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ async def create_single_call(
     Supports live Vapi/Twilio dispatch with automatic fallback to high-fidelity simulation.
     """
     resolved_user_id = payload.user_id
-    if not resolved_user_id and authorization:
+    if (not resolved_user_id or str(resolved_user_id).lower() in ("undefined", "null", "")) and authorization:
         try:
             auth_user = await auth_middleware.get_current_user(authorization)
             if auth_user:
@@ -222,7 +222,7 @@ async def list_calls(
 ):
     """List call history with optional filters and search."""
     resolved_user_id = user_id
-    if not resolved_user_id and authorization:
+    if (not resolved_user_id or str(resolved_user_id).lower() in ("undefined", "null", "")) and authorization:
         try:
             auth_user = await auth_middleware.get_current_user(authorization)
             if auth_user:
@@ -479,7 +479,7 @@ async def get_stats(
 ):
     """Retrieve aggregate statistics for dashboard metric cards."""
     resolved_user_id = user_id
-    if not resolved_user_id and authorization:
+    if (not resolved_user_id or str(resolved_user_id).lower() in ("undefined", "null", "")) and authorization:
         try:
             auth_user = await auth_middleware.get_current_user(authorization)
             if auth_user:

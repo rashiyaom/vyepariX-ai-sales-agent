@@ -371,11 +371,14 @@ export function VoiceFleetModule({
   };
 
   // Load Calls & Stats
+  const userId = user?.id;
+
   const fetchCallsAndStats = async () => {
     try {
       setLoadingCalls(true);
-      const userParam = user?.id ? `&user_id=${user.id}` : "";
-      const statsUserParam = user?.id ? `?user_id=${user.id}` : "";
+      const validUserId = user?.id && user.id !== "undefined" && user.id !== "null" ? user.id : null;
+      const userParam = validUserId ? `&user_id=${encodeURIComponent(validUserId)}` : "";
+      const statsUserParam = validUserId ? `?user_id=${encodeURIComponent(validUserId)}` : "";
       const headers: Record<string, string> = {};
       if (session?.access_token) {
         headers["Authorization"] = `Bearer ${session.access_token}`;
@@ -406,7 +409,7 @@ export function VoiceFleetModule({
       fetchCallsAndStats();
     }, 8000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [userId]);
 
   // Update business name if companyName changes
   useEffect(() => {
@@ -472,7 +475,7 @@ export function VoiceFleetModule({
 
   useEffect(() => {
     fetchSettings();
-  }, [user]);
+  }, [userId]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();

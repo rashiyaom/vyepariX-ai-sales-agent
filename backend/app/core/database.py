@@ -52,6 +52,20 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _clean_user_id(user_id: Optional[str]) -> Optional[str]:
+    """Sanitize and validate user_id string to ensure valid UUID format or None."""
+    if not user_id:
+        return None
+    uid = str(user_id).strip()
+    if not uid or uid.lower() in ("undefined", "null", "none", "false", "true", "0"):
+        return None
+    try:
+        uuid.UUID(uid)
+        return uid
+    except ValueError:
+        return None
+
+
 async def init_db():
     """Verify Supabase database connectivity on application startup."""
     try:
@@ -76,8 +90,9 @@ async def create_report(input_urls: dict, user_id: Optional[str] = None) -> str:
         "created_at": now,
         "updated_at": now,
     }
-    if user_id:
-        payload["user_id"] = user_id
+    clean_uid = _clean_user_id(user_id)
+    if clean_uid:
+        payload["user_id"] = clean_uid
 
     try:
         await asyncio.to_thread(client.table("reports").insert(payload).execute)
@@ -153,7 +168,7 @@ def _ensure_visual_intelligence(report: dict) -> tuple[dict, bool]:
 
     if not analysis.get("timeline_roadmap"):
         try:
-            from data_engine import synthesize_website_figures
+            from app.services.data_engine import synthesize_website_figures
             company = analysis.get("company_name") or "Target Company"
             ind = analysis.get("industry") or "B2B Commercial Enterprise"
             opp = analysis.get("opportunity_score") or 85
@@ -198,10 +213,11 @@ async def get_report(report_id: str) -> Optional[dict]:
 async def list_reports(user_id: Optional[str] = None, limit: int = 50) -> List[dict]:
     """List recent intelligence reports from Supabase with user association and fallback."""
     client = get_supabase()
+    clean_uid = _clean_user_id(user_id)
     try:
         query = client.table("reports").select("id, status, input_urls, analysis, raw_profile, created_at, updated_at, user_id")
-        if user_id:
-            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
+        if clean_uid:
+            query = query.or_(f"user_id.eq.{clean_uid},user_id.is.null")
         res = await asyncio.to_thread(
             query.order("created_at", desc=True).limit(limit).execute
         )
@@ -260,8 +276,9 @@ async def create_voice_call(call_data: dict, user_id: Optional[str] = None) -> s
         "created_at": now,
         "updated_at": now,
     }
-    if user_id:
-        row["user_id"] = user_id
+    clean_uid = _clean_user_id(user_id)
+    if clean_uid:
+        row["user_id"] = clean_uid
 
     try:
         await asyncio.to_thread(client.table("voice_calls").insert(row).execute)
@@ -314,10 +331,11 @@ async def list_voice_calls(
 ) -> List[dict]:
     """List recent voice calls with optional filtering and user scoping from Supabase."""
     client = get_supabase()
+    clean_uid = _clean_user_id(user_id)
     try:
         query = client.table("voice_calls").select("*")
-        if user_id:
-            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
+        if clean_uid:
+            query = query.or_(f"user_id.eq.{clean_uid},user_id.is.null")
         if direction and direction != "all":
             query = query.eq("direction", direction)
         if status and status != "all":
@@ -361,10 +379,11 @@ async def get_voice_stats(user_id: Optional[str] = None) -> dict:
         "positive_sentiment": 0,
     }
 
+    clean_uid = _clean_user_id(user_id)
     try:
         query = client.table("voice_calls").select("direction, status, duration_seconds, analysis, user_id")
-        if user_id:
-            query = query.or_(f"user_id.eq.{user_id},user_id.is.null")
+        if clean_uid:
+            query = query.or_(f"user_id.eq.{clean_uid},user_id.is.null")
         res = await asyncio.to_thread(query.execute)
         rows = res.data or []
         stats["total_calls"] = len(rows)

@@ -20,15 +20,15 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException,
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
-import auth_middleware
-import database as db
-import doc_processor
-import groq_client
-import normalizer
-import scraper
-import data_engine
-import rag_engine
-import voice_router
+from app.core import auth_middleware
+from app.core import database as db
+from app.services import doc_processor
+from app.services import groq_client
+from app.services import normalizer
+from app.services import scraper
+from app.services import data_engine
+from app.services import rag_engine
+from app.routers import voice_router
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")

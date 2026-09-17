@@ -4,8 +4,8 @@
   "private": true,
   "description": "VYAPERI X — Autonomous AI Sales Intelligence & Multilingual Voice Fleet Platform",
   "scripts": {
-    "dev:web": "npm --prefix apps/web run dev",
-    "dev:backend": "cd services/backend && python3 -m uvicorn main:app --reload --port 8000",
-    "build:web": "npm --prefix apps/web run build"
+    "dev:web": "npm --prefix frontend run dev",
+    "dev:backend": "cd backend && python3 -m uvicorn app.main:app --reload --port 8000",
+    "build:web": "npm --prefix frontend run build"
   }
 }
