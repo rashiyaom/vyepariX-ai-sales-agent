@@ -178,8 +178,8 @@ export function CinematicFrameHero() {
         ctx.save();
         ctx.scale(dpr, dpr);
 
-        // Aspect ratio cover geometry (1920x1080 native 16:9)
-        const srcAspect = 1920 / 1080;
+        // Aspect ratio cover geometry (2560x1440 2K Quad HD 16:9)
+        const srcAspect = 2560 / 1440;
         const canvasAspect = displayWidth / displayHeight;
 
         let drawWidth: number;

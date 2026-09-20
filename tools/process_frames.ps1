@@ -3,8 +3,8 @@ param(
     [string]$DarkVideo = "drive-download-20260920T090751Z-1-001\take_this_video_dont_change_a.mp4",
     [string]$OutputBase = "exported_frames",
     [string]$FrontendBase = "frontend\public\frames",
-    [int]$TargetWidth = 1920,
-    [int]$Quality = 82,
+    [int]$TargetWidth = 2560,
+    [int]$Quality = 92,
     [int]$TileSize = 128
 )
 
@@ -67,7 +67,7 @@ function Process-Mode {
     & $UpscaylBin -i $TempDir -o $OutputDir -m $ModelsDir -n "upscayl-lite-4x" -t $TileSize -f webp -c $Quality -w $TargetWidth
 
     $upscaledCount = (Get-ChildItem -Path $OutputDir -Filter "*.webp").Count
-    Write-Host "Generated $upscaledCount enhanced 1080p WebP frames in $OutputDir." -ForegroundColor Green
+    Write-Host "Generated $upscaledCount enhanced 2K Quad HD WebP frames in $OutputDir." -ForegroundColor Green
 
     # Create manifest
     $manifest = @{
@@ -75,7 +75,7 @@ function Process-Mode {
         totalFrames = $upscaledCount
         fps = 24
         width = $TargetWidth
-        height = 1080
+        height = [int]($TargetWidth * 9 / 16)
         format = "webp"
         filePattern = "frame_%04d.webp"
         compressionQuality = $Quality
