@@ -65,14 +65,21 @@ _mongo_db: Optional[AsyncIOMotorDatabase] = None
 _mongo_connected: bool = False
 
 def get_mongo_client() -> AsyncIOMotorClient:
-    """Return active MongoDB async client singleton."""
+    """Return active MongoDB async client singleton with TLS and certifi support."""
     global _mongo_client
     if _mongo_client is None:
-        _mongo_client = AsyncIOMotorClient(
-            MONGODB_URI,
-            serverSelectionTimeoutMS=2500,
-            connectTimeoutMS=2500,
-        )
+        uri = os.getenv("MONGODB_URI", MONGODB_URI).strip()
+        kwargs: Dict[str, Any] = {
+            "serverSelectionTimeoutMS": 4000,
+            "connectTimeoutMS": 4000,
+        }
+        if "mongodb+srv://" in uri or "ssl=true" in uri.lower():
+            try:
+                import certifi
+                kwargs["tlsCAFile"] = certifi.where()
+            except ImportError:
+                pass
+        _mongo_client = AsyncIOMotorClient(uri, **kwargs)
     return _mongo_client
 
 def get_mongo_db() -> AsyncIOMotorDatabase:
@@ -80,7 +87,8 @@ def get_mongo_db() -> AsyncIOMotorDatabase:
     global _mongo_db
     if _mongo_db is None:
         client = get_mongo_client()
-        _mongo_db = client[MONGODB_DB_NAME]
+        db_name = os.getenv("MONGODB_DB_NAME", MONGODB_DB_NAME).strip()
+        _mongo_db = client[db_name]
     return _mongo_db
 
 def _clean_doc(doc: Optional[dict]) -> Optional[dict]:
@@ -122,36 +130,55 @@ _in_memory_voice_settings: Dict[str, str] = {}
 
 async def init_db():
     """Verify MongoDB connectivity and establish collection indexes on startup."""
-    global _mongo_connected
+    global _mongo_connected, _mongo_client, _mongo_db
+    primary_uri = os.getenv("MONGODB_URI", MONGODB_URI).strip()
+    db_name = os.getenv("MONGODB_DB_NAME", MONGODB_DB_NAME).strip()
+
+    connected = False
     try:
         db = get_mongo_db()
-        # Ping MongoDB to verify connection
         await db.command("ping")
+        connected = True
         _mongo_connected = True
-        logger.info(f"MongoDB connected successfully to {MONGODB_URI} [DB: {MONGODB_DB_NAME}]")
+        logger.info(f"MongoDB connected successfully to primary database [DB: {db_name}]")
+    except Exception as e:
+        logger.warning(
+            f"Primary MongoDB connection to {primary_uri} failed: {e}. "
+            f"If using MongoDB Atlas, ensure your IP is added to the Atlas Network Access list (0.0.0.0/0)."
+        )
+        if "localhost" not in primary_uri and "127.0.0.1" not in primary_uri:
+            try:
+                local_client = AsyncIOMotorClient("mongodb://127.0.0.1:27017", serverSelectionTimeoutMS=2000)
+                await local_client.admin.command("ping")
+                _mongo_client = local_client
+                _mongo_db = local_client[db_name]
+                connected = True
+                _mongo_connected = True
+                logger.info("Fell back to local MongoDB daemon on 127.0.0.1:27017 for uninterrupted development.")
+            except Exception:
+                pass
 
-        # Create indexes
+    if connected and _mongo_db is not None:
         try:
-            await db["profiles"].create_index("id", unique=True, background=True)
-            await db["profiles"].create_index("email", background=True)
-            await db["reports"].create_index("id", unique=True, background=True)
-            await db["reports"].create_index("user_id", background=True)
-            await db["reports"].create_index("created_at", background=True)
-            await db["voice_calls"].create_index("id", unique=True, background=True)
-            await db["voice_calls"].create_index("user_id", background=True)
-            await db["voice_calls"].create_index("created_at", background=True)
-            await db["video_calls"].create_index("id", unique=True, background=True)
-            await db["video_calls"].create_index("user_id", background=True)
-            await db["calendar_events"].create_index("id", unique=True, background=True)
-            await db["calendar_events"].create_index("user_id", background=True)
-            await db["calendar_events"].create_index("start_time", background=True)
+            await _mongo_db["profiles"].create_index("id", unique=True, background=True)
+            await _mongo_db["profiles"].create_index("email", background=True)
+            await _mongo_db["reports"].create_index("id", unique=True, background=True)
+            await _mongo_db["reports"].create_index("user_id", background=True)
+            await _mongo_db["reports"].create_index("created_at", background=True)
+            await _mongo_db["voice_calls"].create_index("id", unique=True, background=True)
+            await _mongo_db["voice_calls"].create_index("user_id", background=True)
+            await _mongo_db["voice_calls"].create_index("created_at", background=True)
+            await _mongo_db["video_calls"].create_index("id", unique=True, background=True)
+            await _mongo_db["video_calls"].create_index("user_id", background=True)
+            await _mongo_db["calendar_events"].create_index("id", unique=True, background=True)
+            await _mongo_db["calendar_events"].create_index("user_id", background=True)
+            await _mongo_db["calendar_events"].create_index("start_time", background=True)
             logger.info("MongoDB collection indexes verified.")
         except Exception as idx_err:
             logger.warning(f"Note on MongoDB index creation: {idx_err}")
-
-    except Exception as e:
+    else:
         _mongo_connected = False
-        logger.warning(f"Could not connect to MongoDB at {MONGODB_URI}: {e}. Operating with in-memory resilient cache.")
+        logger.warning("MongoDB operating in in-memory resilient cache mode until database connectivity is established.")
 
 # ─────────────────────────── Profiles Operations (MongoDB) ───────────────
 
