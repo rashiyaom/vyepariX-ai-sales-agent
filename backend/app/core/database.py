@@ -33,15 +33,9 @@ logger = logging.getLogger(__name__)
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "vyepari_x")
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://adhgwqlulqeqpwycvmni.supabase.co")
-SUPABASE_SECRET_KEY = os.getenv(
-    "SUPABASE_SECRET_KEY",
-    "sb_secret_pLhz37Ua40LtMqMpciDPvA_Pz7mOwhw"
-)
-SUPABASE_PUBLISHABLE_KEY = os.getenv(
-    "SUPABASE_PUBLISHABLE_KEY",
-    "sb_publishable_xLcJx_03aKm_jLKJKtzcBA_9R5lF0Hx"
-)
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY", "")
+SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
 
 # ─────────────────────────── Supabase Client (Auth Only) ────────────────
 
