@@ -414,7 +414,7 @@ function ScraperIntakeForm({ onReportCreated }: { onReportCreated: (id: string) 
           </>
         ) : (
           <>
-            <Sparkles className="w-4 h-4 text-lime" /> Launch Intelligence Pipeline
+            <Sparkles className="w-4 h-4 text-paper" /> Launch Intelligence Pipeline
           </>
         )}
       </button>
@@ -764,11 +764,11 @@ function ReportView({
                 onClick={() => onNavigateModule("lead-radar")}
                 className="border border-ink bg-ink text-paper px-3.5 py-2 label-mono font-bold hover:bg-violet hover:border-violet transition-all flex items-center gap-1.5 text-xs"
               >
-                <Radio className="w-3.5 h-3.5 text-lime" /> Launch Lead Radar
+                <Radio className="w-3.5 h-3.5 text-paper" /> Launch Lead Radar
               </button>
               <button
                 onClick={() => onNavigateModule("voice-fleet")}
-                className="border border-violet bg-violet text-paper px-3.5 py-2 label-mono font-bold hover:bg-violet/90 transition-all flex items-center gap-1.5 text-xs"
+                className="border border-violet bg-violet text-violet-foreground px-3.5 py-2 label-mono font-bold hover:bg-violet/90 transition-all flex items-center gap-1.5 text-xs"
               >
                 <Sparkles className="w-3.5 h-3.5" /> Deploy Voice SDR
               </button>
@@ -885,7 +885,7 @@ function ReportView({
                 onClick={() => setActiveBifurcation(tab.id as any)}
                 className={`flex items-center gap-2 px-3.5 py-2 label-mono text-xs font-bold border transition-all whitespace-nowrap ${
                   isAct
-                    ? "border-violet bg-violet text-paper shadow-sm"
+                    ? "border-violet bg-violet text-violet-foreground shadow-sm"
                     : "border-ink/20 bg-card text-muted-foreground hover:text-ink hover:border-ink/40"
                 }`}
               >
@@ -1261,7 +1261,7 @@ function ReportView({
                       }
                     }}
                     disabled={!userMonthlyRevenue.trim()}
-                    className="w-full border border-violet bg-violet text-paper py-2.5 px-4 font-display text-xs font-black uppercase tracking-wider hover:bg-violet/90 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
+                    className="w-full border border-violet bg-violet text-violet-foreground py-2.5 px-4 font-display text-xs font-black uppercase tracking-wider hover:bg-violet/90 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
                   >
                     <TrendingUp className="w-4 h-4" />
                     Plot Actual Baseline vs. AI Fleet Velocity

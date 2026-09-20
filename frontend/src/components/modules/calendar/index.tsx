@@ -56,7 +56,7 @@ export interface CalendarModuleProps {
   companyName?: string;
 }
 
-const API_BASE = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000").replace(/\/$/, "");
+const API_BASE = (((import.meta.env as Record<string, any>)["VITE_BACKEND_URL"]) || "http://localhost:8000").replace(/\/$/, "");
 
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -359,7 +359,7 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
       {actionSuccessMsg && (
         <div className="flex items-center justify-between border border-lime bg-lime/10 px-4 py-2.5 text-xs font-mono text-lime-foreground transition-all">
           <span className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-lime" />
+            <CheckCircle2 className="w-4 h-4 text-lime-700 dark:text-lime" />
             {actionSuccessMsg}
           </span>
           <button onClick={() => setActionSuccessMsg(null)} className="text-muted-foreground hover:text-ink">
@@ -430,7 +430,7 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 border border-ink bg-ink text-paper px-3.5 py-2 label-mono text-xs font-bold hover:bg-violet hover:border-violet transition-all shadow-sm"
             >
-              <Plus className="w-3.5 h-3.5 text-lime" />
+              <Plus className="w-3.5 h-3.5 text-paper" />
               <span>Schedule Meeting / Call</span>
             </button>
           </div>
@@ -552,11 +552,11 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
                         >
                           <span className="truncate font-bold flex items-center gap-1">
                             {isDone ? (
-                              <Check className="w-2.5 h-2.5 text-lime shrink-0" />
+                              <Check className="w-2.5 h-2.5 text-lime-700 dark:text-lime shrink-0" />
                             ) : isMeet ? (
                               <Video className="w-2.5 h-2.5 text-violet shrink-0" />
                             ) : (
-                              <Phone className="w-2.5 h-2.5 text-lime shrink-0" />
+                              <Phone className="w-2.5 h-2.5 text-lime-700 dark:text-lime shrink-0" />
                             )}
                             <span className="truncate">{ev.customer_name}</span>
                           </span>
@@ -567,7 +567,7 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
                             className="hidden group-hover:inline-block p-0.5 hover:bg-secondary text-ink ml-1"
                             title={isDone ? "Reset" : "Mark Done"}
                           >
-                            <CheckSquare className="w-2.5 h-2.5 text-lime" />
+                            <CheckSquare className="w-2.5 h-2.5 text-lime-700 dark:text-lime" />
                           </button>
                         </div>
                       );
@@ -824,7 +824,7 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
                       <div className="flex items-start gap-3.5">
                         <div className="border border-ink/30 bg-paper p-2 text-center min-w-[58px] shrink-0">
                           <div className="text-[10px] font-mono text-muted-foreground uppercase font-bold">
-                            {MONTH_NAMES[startD.getMonth()].slice(0, 3)}
+                            {(MONTH_NAMES[startD.getMonth()] || "").slice(0, 3)}
                           </div>
                           <div className="font-display text-lg font-extrabold text-ink leading-none mt-0.5">
                             {startD.getDate()}
@@ -868,7 +868,7 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
                             </span>
                             {ev.call_id && (
                               <span className="text-violet flex items-center gap-1">
-                                <Sparkles className="w-3 h-3 text-lime" />
+                                <Sparkles className="w-3 h-3 text-lime-700 dark:text-lime" />
                                 Booked from AI Voice Call
                               </span>
                             )}
@@ -959,7 +959,7 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
               {selectedEvent.customer_phone && (
                 <div className="p-3 flex items-center justify-between">
                   <span className="text-muted-foreground flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-lime" /> Phone
+                    <Phone className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Phone
                   </span>
                   <span className="text-ink">{selectedEvent.customer_phone}</span>
                 </div>
@@ -1032,7 +1032,7 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
                       : "border-ink bg-ink text-paper hover:bg-violet hover:border-violet"
                   }`}
                 >
-                  <Check className="w-3.5 h-3.5 text-lime" />
+                  <Check className={`w-3.5 h-3.5 ${selectedEvent.status === "completed" ? "text-lime-foreground" : "text-paper"}`} />
                   <span>{selectedEvent.status === "completed" ? "Done (Completed)" : "Mark Done"}</span>
                 </button>
               </div>
@@ -1194,7 +1194,7 @@ export function CalendarModule({ user, session, companyName }: CalendarModulePro
                   disabled={submitting}
                   className="px-5 py-2 border border-ink bg-ink text-paper label-mono text-xs font-bold hover:bg-violet hover:border-violet transition-all flex items-center gap-1.5"
                 >
-                  <Check className="w-3.5 h-3.5 text-lime" />
+                  <Check className="w-3.5 h-3.5 text-paper" />
                   <span>{submitting ? "Scheduling..." : "Schedule Meeting"}</span>
                 </button>
               </div>

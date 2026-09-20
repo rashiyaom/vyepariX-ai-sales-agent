@@ -839,7 +839,7 @@ export function VoiceAgentSynthesizerWidget({
             >
               <div className="font-display text-xs font-bold text-ink group-hover:text-violet flex items-center justify-between">
                 <span>{preset.label}</span>
-                <Play className="h-3 w-3 opacity-60 group-hover:opacity-100 text-lime" />
+                <Play className="h-3 w-3 opacity-60 group-hover:opacity-100 text-lime-700 dark:text-lime" />
               </div>
               <div className="font-mono text-[11px] text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
                 "{preset.text}"
@@ -872,7 +872,7 @@ export function VoiceAgentSynthesizerWidget({
           />
           <button
             onClick={() => handleSpeak()}
-            className="px-5 border border-ink bg-ink text-paper font-mono text-xs font-bold rounded hover:bg-violet hover:border-violet transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shrink-0 shadow"
+            className="px-5 border border-neutral-800 bg-neutral-950 text-neutral-100 font-mono text-xs font-bold rounded hover:bg-violet hover:border-violet transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shrink-0 shadow"
           >
             <Volume2 className="h-4 w-4 text-lime" />
             <span>Speak</span>

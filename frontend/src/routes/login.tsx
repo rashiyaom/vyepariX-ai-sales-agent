@@ -477,8 +477,8 @@ function LoginPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
-      {/* ── Left Branding Panel ── */}
-      <div className="relative hidden flex-col justify-between border-r border-ink bg-ink p-12 text-paper lg:flex overflow-hidden">
+      {/* ── Left Branding Panel (Permanent Dark Cyberpunk Style) ── */}
+      <div className="relative hidden flex-col justify-between border-r border-neutral-800 bg-neutral-950 p-12 text-neutral-100 lg:flex overflow-hidden">
         <div className="grid-paper absolute inset-0 opacity-20" />
 
         {/* Top Brand Bar */}
@@ -501,12 +501,12 @@ function LoginPage() {
               &nbsp;
             </span>
           </div>
-          <p className="max-w-md font-mono text-xs leading-relaxed text-paper/70">
+          <p className="max-w-md font-mono text-xs leading-relaxed text-neutral-300">
             Autonomous multi-source intelligence, 40+ signal buying intent discovery radar, and multilingual voice SDR fleet. Powered by Supabase Auth & Postgres.
           </p>
 
           {/* Metrics */}
-          <div className="grid grid-cols-3 gap-px border border-paper/15 bg-paper/10">
+          <div className="grid grid-cols-3 gap-px border border-white/15 bg-white/10">
             <Counter end={11} label="Pipeline Gates" suffix="" />
             <Counter end={40} label="Signal Feeds" suffix="+" />
             <Counter end={14} label="Hours Saved / Wk" suffix="h" />
@@ -514,7 +514,7 @@ function LoginPage() {
         </div>
 
         {/* Bottom Feature Badges */}
-        <div className="relative z-10 flex items-center gap-6 border-t border-paper/15 pt-6 text-paper/60 font-mono text-xs">
+        <div className="relative z-10 flex items-center gap-6 border-t border-white/15 pt-6 text-neutral-400 font-mono text-xs">
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-lime" /> Supabase JWT Encrypted
           </span>
@@ -579,7 +579,7 @@ function LoginPage() {
                     disabled={loading}
                     className="mt-2 inline-flex items-center gap-1.5 border border-ink bg-ink text-paper px-3 py-1.5 font-mono text-[11px] font-bold hover:bg-violet hover:border-violet transition-colors shadow"
                   >
-                    <Zap className="w-3.5 h-3.5 text-lime" /> Activate Workspace Instantly (Bypass Email Rate Limit)
+                    <Zap className="w-3.5 h-3.5 text-paper" /> Activate Workspace Instantly (Bypass Email Rate Limit)
                   </button>
                 )}
                 {pendingEmail && (
@@ -602,7 +602,7 @@ function LoginPage() {
 
           {successMessage && (
             <div className="mt-4 border border-lime/40 bg-lime/10 p-3 text-xs font-mono text-lime-800 dark:text-lime flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-lime" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-lime-700 dark:text-lime" />
               <span>{successMessage}</span>
             </div>
           )}
@@ -766,7 +766,7 @@ function LoginPage() {
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 text-lime" /> Create Account & Start Free Trial →
+                        <Sparkles className="w-4 h-4 text-paper" /> Create Account & Start Free Trial →
                       </>
                     )}
                   </button>

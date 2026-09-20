@@ -69,7 +69,7 @@
   --violet: oklch(0.55 0.24 291);
   --violet-foreground: oklch(0.98 0 0);
   --lime: oklch(0.93 0.2 118);
-  --lime-foreground: oklch(0.17 0 0);
+  --lime-foreground: oklch(0.12 0 0);
   --destructive: oklch(0.55 0.23 27);
   --destructive-foreground: oklch(0.98 0 0);
   --danger: oklch(0.55 0.23 27);
@@ -93,9 +93,26 @@
   --secondary-foreground: oklch(0.97 0.004 95);
   --muted: oklch(0.18 0.018 255);
   --muted-foreground: oklch(0.68 0.012 95);
+  --violet: oklch(0.65 0.26 295);
+  --violet-foreground: oklch(0.98 0 0);
+  --lime: oklch(0.93 0.2 118);
+  --lime-foreground: oklch(0.12 0 0);
   --border: oklch(0.97 0 0 / 18%);
   --input: oklch(0.97 0 0 / 22%);
   --ring: oklch(0.65 0.28 295);
+}
+
+/* Accessibility contrast rules: ensure high contrast on accent backgrounds in both light & dark mode */
+.bg-lime.text-ink,
+.bg-lime .text-ink,
+[class*="bg-lime"].text-ink {
+  color: oklch(0.12 0 0) !important;
+}
+
+.bg-violet.text-paper,
+.bg-violet .text-paper,
+[class*="bg-violet"].text-paper {
+  color: oklch(0.98 0 0) !important;
 }
 
 @utility brut-border {

@@ -520,9 +520,9 @@ export function Sandbox() {
         })}
       </div>
 
-      {/* Live Stage Execution Terminal Logs */}
-      <div className="p-6 bg-ink text-paper space-y-4">
-        <div className="flex items-center justify-between font-mono text-xs text-paper/60 border-b border-paper/10 pb-2">
+      {/* Live Stage Execution Terminal Logs (Permanent Dark Console for Phosphor Contrast) */}
+      <div className="p-6 border border-neutral-800 bg-neutral-950 text-neutral-100 dark:bg-black space-y-4">
+        <div className="flex items-center justify-between font-mono text-xs text-neutral-400 border-b border-white/10 pb-2">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-lime animate-ping" />
             <span>Autonomous Flow Engine Telemetry</span>
@@ -538,11 +538,11 @@ export function Sandbox() {
 
         <div className="min-h-[170px] max-h-[260px] overflow-y-auto space-y-2.5 font-mono text-[11px]">
           {step < 0 && (
-            <div className="py-12 text-center text-paper/40 space-y-1">
+            <div className="py-12 text-center text-neutral-400 space-y-1">
               <div>
                 // Click "Run 11-Step Simulation" above to watch VYAPERI X process this workflow
               </div>
-              <div className="text-[10px] text-paper/30">
+              <div className="text-[10px] text-neutral-500">
                 From Onboarding & LLM Understanding through Discovery, Enrichment, Voice Call, and
                 CRM Sync
               </div>
@@ -558,7 +558,7 @@ export function Sandbox() {
                   </span>
                   <span>[{STAGES[stageIdx]![1]}]:</span>
                 </div>
-                <div className="pl-4 space-y-0.5 text-paper/85">
+                <div className="pl-4 space-y-0.5 text-neutral-300">
                   {entries.map((logLine, logIdx) => (
                     <div key={logIdx} className="flex items-center gap-2">
                       <span className="text-lime text-[10px]">✓</span>

@@ -286,7 +286,7 @@ function Index() {
   const costSavingsLakhs = (teamSize * 7.5).toFixed(1);
 
   return (
-    <div className="min-h-screen bg-paper text-ink transition-colors duration-300 relative selection:bg-lime selection:text-ink">
+    <div className="min-h-screen bg-paper text-ink transition-colors duration-300 relative selection:bg-lime selection:text-neutral-950">
       {/* 🚀 Neon Top Scroll Progress Indicator */}
       <ScrollProgressBar />
 

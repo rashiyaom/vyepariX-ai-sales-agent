@@ -87,7 +87,7 @@ export function PipelineCarousel({ modules }: PipelineCarouselProps) {
                 onClick={() => setActiveIndex(idx)}
                 className={`p-2 border text-left font-mono text-xs transition-all flex flex-col justify-between group ${
                   isActive
-                    ? "border-violet bg-violet text-paper font-black shadow-md ring-2 ring-violet/20"
+                    ? "border-violet bg-violet text-violet-foreground font-black shadow-md ring-2 ring-violet/20"
                     : isCompleted
                     ? "border-lime-700/40 dark:border-lime/40 bg-lime/5 text-ink hover:border-violet hover:bg-secondary"
                     : "border-ink/15 bg-paper text-muted-foreground hover:border-ink hover:text-ink"
@@ -118,7 +118,7 @@ export function PipelineCarousel({ modules }: PipelineCarouselProps) {
         <div className="border-2 border-ink bg-paper p-6 sm:p-8 space-y-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/15 pb-4">
             <div className="flex items-center gap-3">
-              <span className="border border-ink bg-violet text-paper px-3 py-1 font-mono text-xs font-black">
+              <span className="border border-ink bg-violet text-violet-foreground px-3 py-1 font-mono text-xs font-black">
                 STEP {activeModule.n}
               </span>
               <span className="label-mono border border-violet/30 bg-violet/10 text-violet px-2.5 py-0.5 text-[10px]">
@@ -194,18 +194,18 @@ export function PipelineCarousel({ modules }: PipelineCarouselProps) {
             </div>
           </div>
 
-          <div className="border border-ink bg-ink text-paper p-4 flex items-center justify-between gap-3">
+          <div className="border border-neutral-800 bg-neutral-950 text-neutral-100 dark:bg-black p-4 flex items-center justify-between gap-3">
             <div className="space-y-0.5">
               <span className="font-display text-xs font-black uppercase text-lime">
                 Ready to Experience The Pipeline?
               </span>
-              <p className="font-mono text-[10px] text-paper/70">
+              <p className="font-mono text-[10px] text-neutral-400">
                 Launch live intelligence simulation or test company intake.
               </p>
             </div>
             <a
               href="#sandbox"
-              className="border border-lime bg-lime text-ink px-3.5 py-1.5 label-mono text-xs font-bold hover:bg-lime/90 transition-all shrink-0 flex items-center gap-1"
+              className="border border-lime bg-lime text-lime-foreground px-3.5 py-1.5 label-mono text-xs font-black hover:bg-lime/90 transition-all shrink-0 flex items-center gap-1"
             >
               Test Sandbox <ArrowRight className="w-3 h-3" />
             </a>

@@ -173,7 +173,7 @@ export function AmbientAudioPlayer() {
         <button
           onClick={togglePlay}
           title={isPlaying ? "Pause Ambient Music" : "Play Ambient Music (Spark.mp3)"}
-          className="flex h-7 w-7 items-center justify-center border border-ink bg-ink text-paper hover:bg-violet hover:border-violet transition-all active:scale-95 shadow-sm shrink-0"
+          className="flex h-7 w-7 items-center justify-center border border-neutral-800 bg-neutral-950 text-neutral-100 hover:bg-violet hover:border-violet transition-all active:scale-95 shadow-sm shrink-0"
         >
           {isPlaying ? (
             <Pause className="h-3.5 w-3.5 text-lime" />
