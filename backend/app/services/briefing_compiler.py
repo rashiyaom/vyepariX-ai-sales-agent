@@ -17,9 +17,12 @@ from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
-# Ensure environment variables are loaded
-_backend_dir = Path(__file__).resolve().parent.parent.parent
-load_dotenv(_backend_dir / ".env")
+_root_env = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+_backend_env = Path(__file__).resolve().parent.parent.parent / ".env"
+if _root_env.exists():
+    load_dotenv(_root_env)
+elif _backend_env.exists():
+    load_dotenv(_backend_env)
 load_dotenv()
 
 logger = logging.getLogger(__name__)

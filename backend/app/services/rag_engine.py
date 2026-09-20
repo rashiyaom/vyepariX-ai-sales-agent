@@ -83,7 +83,7 @@ def _get_gemini_client():
 def _get_pinecone_index():
     """Return the Pinecone index instance."""
     try:
-        from pinecone import Pinecone
+        from pinecone import Pinecone  # type: ignore
         if not PINECONE_API_KEY:
             raise RuntimeError("PINECONE_API_KEY not set in .env")
         pc = Pinecone(api_key=PINECONE_API_KEY)

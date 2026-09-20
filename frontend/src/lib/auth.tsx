@@ -253,6 +253,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     onError: (errorResponse) => {
       console.error("Google authentication failed:", errorResponse);
+      const detail =
+        (errorResponse as any).error_description ||
+        (errorResponse as any).error ||
+        "Google sign-in failed";
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("vyepari_google_auth_error", { detail })
+        );
+      }
     },
   });
 
@@ -296,7 +305,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           industry: metadata?.industry?.trim() || "",
           onboarding_completed: false,
         },
-        emailRedirectTo: `${origin}/onboarding`,
+        emailRedirectTo: `${origin}/login?confirmed=true`,
       },
     });
 
