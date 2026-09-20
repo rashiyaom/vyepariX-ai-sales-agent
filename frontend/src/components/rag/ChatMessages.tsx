@@ -19,7 +19,7 @@ export interface ChatMessage {
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
-  streamingContent?: string;
+  streamingContent?: string | undefined;
 }
 
 export function cleanChatText(text: string): string {

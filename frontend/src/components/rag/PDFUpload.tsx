@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PDF Upload component
  * Drag-and-drop + click-to-browse PDF uploader.
  * Matches VYAPERI X design system: sharp corners, violet accent, Archivo font.
@@ -14,7 +14,7 @@ interface PDFUploadProps {
 
 type UploadState = "idle" | "uploading" | "success" | "error";
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
+const API = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:5000/api/v1";
 const TOKEN = () => localStorage.getItem("vyaperi_token") ?? "mock_jwt_token";
 
 export function PDFUpload({ knowledgeBaseId, onUploadComplete }: PDFUploadProps) {

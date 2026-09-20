@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Chat Widget - floating chatbot panel
  *
  * Floating action button (lime) + slide-up panel anchored to bottom-right.
@@ -26,7 +26,7 @@ interface ChatWidgetProps {
   initialOpen?: boolean;
 }
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
+const API = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:5000/api/v1";
 
 let msgCounter = 0;
 function nextId(): string { return `msg_${++msgCounter}`; }

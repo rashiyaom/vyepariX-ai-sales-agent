@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Ingestion Status component — live SSE progress display
  * Shows pages discovered / indexed / failed as they stream in.
  */
@@ -129,7 +129,7 @@ export function IngestionStatus({ sseUrl, token, onComplete }: IngestionStatusPr
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: number; color?: string }) {
+function Stat({ label, value, color }: { label: string; value: number; color?: string | undefined }) {
   return (
     <div className="flex flex-col">
       <span className="label-mono text-[9px] text-muted-foreground">{label}</span>

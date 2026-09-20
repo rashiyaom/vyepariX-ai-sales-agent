@@ -103,9 +103,9 @@ export function StatGrid({ children }: { children: ReactNode }) {
 }
 
 /* ── Live indicator dot ── */
-export function LiveDot({ label = "Live" }: { label?: string }) {
+export function LiveDot({ label = "Live", className = "" }: { label?: string; className?: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-emerald-700 dark:text-lime font-bold">
+    <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] text-emerald-700 dark:text-lime font-bold ${className}`}>
       <span className="inline-block h-1.5 w-1.5 bg-emerald-600 dark:bg-lime live-dot" />
       {label}
     </span>

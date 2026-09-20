@@ -31,7 +31,7 @@ function DashboardShell() {
 
   useEffect(() => {
     const token = localStorage.getItem("vyaperi_token") ?? "mock_jwt_token";
-    const api = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
+    const api = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:5000/api/v1";
     fetch(`${api}/knowledge-bases`, {
       headers: { Authorization: `Bearer ${token}` },
     })

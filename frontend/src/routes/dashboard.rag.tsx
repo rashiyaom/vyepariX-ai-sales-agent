@@ -1,4 +1,4 @@
-﻿/**
+/**
  * dashboard.rag.tsx - Knowledge Base Management & Direct AI Chat
  *
  * Clean, refined UX:
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/dashboard/rag")({
   component: RagAdminPage,
 });
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api/v1";
+const API = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:5000/api/v1";
 const TOKEN = () => localStorage.getItem("vyaperi_token") ?? "mock_jwt_token";
 
 interface KBSource {
@@ -115,8 +115,9 @@ export default function RagAdminPage() {
       if (res.ok) {
         const data = (await res.json()) as KnowledgeBase[];
         setKbs(data);
-        if (!expandedKb && data.length > 0) setExpandedKb(data[0].id);
-        if (data.length > 0) setSelectedKbForChat((prev) => prev ?? data[0]);
+        const first = data[0];
+        if (!expandedKb && first) setExpandedKb(first.id);
+        if (first) setSelectedKbForChat((prev) => prev ?? first);
       }
     } catch (err) {
       console.error("Failed to fetch knowledge bases:", err);
