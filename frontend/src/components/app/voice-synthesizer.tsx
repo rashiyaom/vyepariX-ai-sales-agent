@@ -631,7 +631,7 @@ export function HeroVoicePreview() {
               className={`px-3 py-1.5 border text-xs font-mono flex items-center gap-1.5 rounded transition-all active:scale-95 ${
                 isPlaying
                   ? (agentColor[agent.id] ?? "bg-violet text-white border-violet")
-                  : "bg-paper border-border hover:border-violet text-ink"
+                  : "bg-paper border-border hover:border-violet text-ink dark:text-neutral-200 dark:border-neutral-700"
               }`}
             >
               {isPlaying ? (
@@ -782,7 +782,7 @@ export function VoiceAgentSynthesizerWidget({
                 className={`flex-1 py-1.5 px-1.5 border text-xs font-mono transition-all text-center rounded ${
                   selectedLang === code
                     ? "bg-violet text-white border-violet font-bold shadow-sm"
-                    : "bg-card border-border hover:bg-secondary text-ink"
+                    : "bg-card border-border hover:bg-secondary text-ink dark:text-neutral-200 dark:border-neutral-700"
                 }`}
               >
                 {label}
@@ -811,7 +811,7 @@ export function VoiceAgentSynthesizerWidget({
                 className={`flex-1 py-1.5 px-2 border text-xs font-mono transition-all text-center rounded ${
                   selectedGender === g
                     ? "bg-lime text-lime-foreground border-lime font-bold shadow-sm"
-                    : "bg-card border-border hover:bg-secondary text-ink"
+                    : "bg-card border-border hover:bg-secondary text-ink dark:text-neutral-200 dark:border-neutral-700"
                 }`}
               >
                 {label}

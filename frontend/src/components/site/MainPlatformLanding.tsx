@@ -248,7 +248,7 @@ export function MainPlatformLanding() {
             </ScrollReveal>
 
             <ScrollReveal variant="fade-up" delay={150}>
-              <h1 className="font-display text-[clamp(2.75rem,9vw,6.5rem)] font-extrabold leading-[0.85] tracking-tight">
+              <h1 className="font-display text-[clamp(2.75rem,9vw,6.5rem)] font-extrabold leading-[0.85] tracking-tight text-ink">
                 AI Sales
                 <br />
                 Engine
@@ -271,14 +271,14 @@ export function MainPlatformLanding() {
               <div className="flex flex-wrap items-center gap-4">
                 <Link
                   to="/login"
-                  className="group inline-flex items-center gap-3 border border-ink bg-ink px-6 py-4 label-mono text-paper transition-all hover:border-violet hover:bg-violet active:scale-95 shadow-md"
+                  className="group inline-flex items-center gap-3 border border-ink bg-ink px-6 py-4 label-mono text-paper transition-all hover:border-violet hover:bg-violet hover:text-white active:scale-95 shadow-md"
                 >
                   Start Free Trial
                   <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                 </Link>
                 <a
                   href="#sandbox"
-                  className="inline-flex items-center gap-2 border border-ink/20 bg-card px-4 py-4 label-mono hover:border-violet hover:text-violet transition-all"
+                  className="inline-flex items-center gap-2 border border-ink/20 bg-card px-4 py-4 label-mono text-ink hover:border-violet hover:text-violet transition-all"
                 >
                   <Maximize2 className="h-3.5 w-3.5" /> Interactive Pipeline Sandbox
                 </a>
@@ -303,7 +303,7 @@ export function MainPlatformLanding() {
                     key={l}
                     className="bg-paper px-4 py-3.5 hover:bg-secondary transition-colors"
                   >
-                    <dt className="font-display text-xl font-extrabold">{v}</dt>
+                    <dt className="font-display text-xl font-extrabold text-ink">{v}</dt>
                     <dd className="mt-0.5 label-mono text-[10px] text-muted-foreground">{l}</dd>
                   </div>
                 ))}
@@ -518,7 +518,7 @@ export function MainPlatformLanding() {
                     className={`px-3 py-1.5 font-mono text-xs border transition-colors ${
                       activeLang === "hi"
                         ? "bg-violet text-white border-violet font-bold"
-                        : "border-ink/20 hover:bg-secondary"
+                        : "border-ink/20 hover:bg-secondary text-ink"
                     }`}
                   >
                     Hindi (हिन्दी)
@@ -528,7 +528,7 @@ export function MainPlatformLanding() {
                     className={`px-3 py-1.5 font-mono text-xs border transition-colors ${
                       activeLang === "gu"
                         ? "bg-violet text-white border-violet font-bold"
-                        : "border-ink/20 hover:bg-secondary"
+                        : "border-ink/20 hover:bg-secondary text-ink"
                     }`}
                   >
                     Gujarati (ગુજરાતી)
@@ -538,7 +538,7 @@ export function MainPlatformLanding() {
                     className={`px-3 py-1.5 font-mono text-xs border transition-colors ${
                       activeLang === "en"
                         ? "bg-violet text-white border-violet font-bold"
-                        : "border-ink/20 hover:bg-secondary"
+                        : "border-ink/20 hover:bg-secondary text-ink"
                     }`}
                   >
                     English (UK/Global)
@@ -616,7 +616,7 @@ export function MainPlatformLanding() {
                       </span>
                       <span className="font-mono text-xs text-violet font-semibold">{c.stat}</span>
                     </div>
-                    <h3 className="font-display text-xl font-extrabold leading-tight">{c.t}</h3>
+                    <h3 className="font-display text-xl font-extrabold leading-tight text-ink">{c.t}</h3>
                     <p className="font-mono text-xs leading-relaxed text-muted-foreground">{c.d}</p>
                   </div>
                 </div>
@@ -631,7 +631,7 @@ export function MainPlatformLanding() {
         <div className="mx-auto grid max-w-[1400px] gap-px bg-ink/15 px-0 lg:grid-cols-2">
           <ScrollReveal variant="fade-right" className="bg-paper p-8 lg:p-14 space-y-6">
             <span className="label-mono text-violet">/07 Provisioning</span>
-            <h2 className="font-display text-3xl font-extrabold leading-[0.9] sm:text-4xl">
+            <h2 className="font-display text-3xl font-extrabold leading-[0.9] sm:text-4xl text-ink">
               Start your
               <br />
               sales engine
@@ -642,7 +642,7 @@ export function MainPlatformLanding() {
             </p>
             <Link
               to="/login"
-              className="group inline-flex items-center gap-3 border border-ink bg-ink px-6 py-4 label-mono text-paper transition-all hover:border-violet hover:bg-violet active:scale-95 shadow-lg"
+              className="group inline-flex items-center gap-3 border border-ink bg-ink px-6 py-4 label-mono text-paper transition-all hover:border-violet hover:bg-violet hover:text-white active:scale-95 shadow-lg"
             >
               Access Sales Console
               <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -651,7 +651,7 @@ export function MainPlatformLanding() {
 
           <ScrollReveal variant="fade-left" delay={150} className="bg-paper p-8 lg:p-14">
             <span className="label-mono text-violet">/08 Telemetry</span>
-            <h2 className="mt-2 font-display text-xl font-extrabold">
+            <h2 className="mt-2 font-display text-xl font-extrabold text-ink">
               Autonomous Engine Telemetry
             </h2>
             <div className="mt-6 space-y-5">
@@ -664,7 +664,7 @@ export function MainPlatformLanding() {
                 <div key={l as string}>
                   <div className="flex items-baseline justify-between font-mono text-[11px]">
                     <span className="label-mono text-muted-foreground">{l}</span>
-                    <span className="font-semibold">{v}</span>
+                    <span className="font-semibold text-ink">{v}</span>
                   </div>
                   <div className="mt-2 h-1.5 w-full bg-ink/10">
                     <div className="h-full bg-lime" style={{ width: `${p as number}%` }} />
@@ -696,7 +696,7 @@ export function MainPlatformLanding() {
                   <Sparkles className="h-3.5 w-3.5" />
                   Multi-Source: Web + PDF + CSV + Excel + Images
                 </div>
-                <h3 className="font-display text-3xl font-extrabold leading-[0.9] sm:text-4xl">
+                <h3 className="font-display text-3xl font-extrabold leading-[0.9] sm:text-4xl text-ink">
                   Turn Raw Company
                   <br />
                   Assets into Board-Grade
@@ -724,7 +724,7 @@ export function MainPlatformLanding() {
                 </ul>
                 <Link
                   to="/scraper"
-                  className="group inline-flex items-center gap-3 border border-ink bg-ink px-6 py-4 label-mono text-paper transition-all hover:border-violet hover:bg-violet active:scale-95 shadow-md"
+                  className="group inline-flex items-center gap-3 border border-ink bg-ink px-6 py-4 label-mono text-paper transition-all hover:border-violet hover:bg-violet hover:text-white active:scale-95 shadow-md"
                 >
                   Open Intelligence Suite
                   <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -744,7 +744,7 @@ export function MainPlatformLanding() {
                       key={l}
                       className="bg-paper px-5 py-6 hover:bg-secondary transition-colors"
                     >
-                      <dt className="font-display text-2xl font-extrabold">{v}</dt>
+                      <dt className="font-display text-2xl font-extrabold text-ink">{v}</dt>
                       <dd className="mt-1 label-mono text-[10px] text-muted-foreground">{l}</dd>
                     </div>
                   ))}
