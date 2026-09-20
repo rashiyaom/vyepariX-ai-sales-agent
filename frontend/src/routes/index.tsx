@@ -646,7 +646,7 @@ function Index() {
                   ))}
                 </div>
 
-                <div className="mt-2 border border-ink bg-lime px-3 py-2 label-mono text-lime-foreground text-center font-bold">
+                <div className="mt-2 border border-ink bg-lime px-3 py-2 label-mono text-black text-center font-extrabold">
                   {protocol.outcome}
                 </div>
               </div>
@@ -729,84 +729,8 @@ function Index() {
                 </div>
               ))}
             </div>
-            <div className="mt-8 border border-ink bg-lime px-4 py-3 label-mono text-lime-foreground text-center font-bold">
+            <div className="mt-8 border border-ink bg-lime px-4 py-3 label-mono text-black text-center font-extrabold">
               ✓ All Autonomous Sales Pipelines Operational
-            </div>
-          </ScrollReveal>
-        </div>
-      </section>
-
-      {/* ── /12 INTELLIGENCE SUITE MODULE CTA ── */}
-      <section className="border-b border-ink/20">
-        <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8">
-          <ScrollReveal variant="fade-up">
-            <SectionHead index="12" title="Intelligence Suite — Commercial Due Diligence Engine">
-              <span className="label-mono text-muted-foreground">New Module · Available Now</span>
-            </SectionHead>
-          </ScrollReveal>
-
-          <ScrollReveal variant="fade-up" delay={100} className="mt-8">
-            <div className="grid gap-px bg-ink/15 lg:grid-cols-[1.2fr_1fr]">
-              {/* Left — Description */}
-              <div className="bg-paper p-8 lg:p-12 space-y-6">
-                <div className="inline-flex items-center gap-2 border border-violet/30 bg-violet/5 px-3 py-1.5 label-mono text-violet">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Multi-Source: Web + PDF + CSV + Excel + Images
-                </div>
-                <h3 className="font-display text-3xl font-extrabold leading-[0.9] sm:text-4xl">
-                  Turn Raw Company
-                  <br />
-                  Assets into Board-Grade
-                  <br />
-                  <span className="text-violet">Intelligence</span>
-                </h3>
-                <p className="max-w-md font-mono text-xs leading-relaxed text-muted-foreground">
-                  Paste a company URL, attach their pitch decks, financial sheets, or product
-                  catalogs. The engine scrapes, ingests and cross-references all sources — surfacing
-                  discrepancies, competitive gaps, conversion funnel health, and a prioritized
-                  strategic roadmap in under 90 seconds.
-                </p>
-                <ul className="space-y-2">
-                  {[
-                    "Per-source isolation — no blended hallucinations",
-                    "Automatic discrepancy detection between public & internal claims",
-                    "Interactive 4-quarter growth forecast & funnel diagnostics",
-                    "Prioritized action playbooks with execution checklists",
-                  ].map((li) => (
-                    <li key={li} className="flex gap-2.5 font-mono text-xs text-ink">
-                      <span className="text-emerald-700 dark:text-lime font-bold">✓</span>
-                      {li}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/scraper"
-                  className="group inline-flex items-center gap-3 border border-ink bg-ink px-6 py-4 label-mono text-paper transition-all hover:border-violet hover:bg-violet active:scale-95 shadow-md"
-                >
-                  Open Intelligence Suite
-                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </Link>
-              </div>
-
-              {/* Right — Stats Grid */}
-              <div className="bg-secondary/30 p-8 lg:p-12 flex flex-col justify-between gap-8">
-                <div className="grid grid-cols-2 gap-px bg-ink/15">
-                  {[
-                    ["5+", "File Source Types"],
-                    ["< 90s", "Report Generation"],
-                    ["Anti-Hall.", "Verified Output"],
-                    ["100%", "Source Attribution"],
-                  ].map(([v, l]) => (
-                    <div key={l} className="bg-paper px-5 py-6 hover:bg-secondary transition-colors">
-                      <dt className="font-display text-2xl font-extrabold">{v}</dt>
-                      <dd className="mt-1 label-mono text-[10px] text-muted-foreground">{l}</dd>
-                    </div>
-                  ))}
-                </div>
-                <div className="border border-ink bg-lime px-4 py-3 label-mono text-lime-foreground text-center font-bold">
-                  ✓ Intelligence Engine Operational
-                </div>
-              </div>
             </div>
           </ScrollReveal>
         </div>

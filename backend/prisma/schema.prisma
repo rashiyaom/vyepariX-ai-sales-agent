@@ -1,0 +1,333 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  SALES_MANAGER
+  SALES_REP
+  PLATFORM_ADMIN
+}
+
+enum LeadSource {
+  UPLOADED
+  DISCOVERED
+}
+
+enum LeadStatus {
+  NEW
+  ENRICHED
+  QUALIFIED
+  CONTACTED
+  INTERESTED
+  NOT_INTERESTED
+  CALLBACK
+  CONVERTED
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+}
+
+enum CallDirection {
+  OUTBOUND
+  INBOUND
+}
+
+// ─── Core Org & User Models ──────────────────────────────────────────────────
+
+model Organization {
+  id              String           @id @default(uuid())
+  name            String
+  createdAt       DateTime         @default(now())
+  users           User[]
+  businessProfile BusinessProfile?
+  leads           Lead[]
+  campaigns       Campaign[]
+  crmConnections  CRMConnection[]
+  subscription    Subscription?
+  auditLogs       AuditLog[]
+  fraudFlags      FraudFlag[]
+}
+
+model User {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String       @unique
+  passwordHash   String
+  role           Role         @default(SALES_REP)
+  createdAt      DateTime     @default(now())
+}
+
+enum BusinessProfileStatus {
+  DRAFT
+  CONFIRMED
+}
+
+// ─── Business Profile ────────────────────────────────────────────────────────
+
+model BusinessProfile {
+  id              String                @id @default(uuid())
+  organizationId  String                @unique
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  status          BusinessProfileStatus @default(DRAFT)
+  sourceUrl       String?
+  linkedinUrl     String?
+  userDescription String?
+  description     String?               // alias for userDescription
+  rawScrapedData  Json?                 // per-page text, kept for transparency/audit
+  companySummary  String?
+  coreServices    Json?                 // structured list of services/products
+  derivedServices Json?                 // backwards-compatible alias
+  industries      String[]
+  icp             Json?                 // AI-derived ideal customer profile
+  keywords        String[]              // discovery engine seeds
+  differentiators String[]              // USPs
+  confirmedAt     DateTime?
+  updatedAt       DateTime              @updatedAt
+}
+
+// ─── Lead & Opportunity ──────────────────────────────────────────────────────
+
+model Lead {
+  id             String              @id @default(uuid())
+  organizationId String
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  source         LeadSource
+  status         LeadStatus          @default(NEW)
+  // PII stored encrypted (application-layer AES-256-GCM)
+  companyName    String?
+  contactName    String?
+  phoneEncrypted String?             // encrypted phone
+  emailEncrypted String?             // encrypted email
+  timezone       String?
+  opportunity    Opportunity?
+  enrichment     EnrichmentData?
+  qualification  QualificationScore?
+  campaignId     String?
+  campaign       Campaign?           @relation(fields: [campaignId], references: [id])
+  calls          Call[]
+  createdAt      DateTime            @default(now())
+}
+
+model Opportunity {
+  id              String   @id @default(uuid())
+  leadId          String   @unique
+  lead            Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sourcePlatform  String   // 'linkedin' | 'x' | 'job_board' | 'bidding_platform' | 'freelance_platform' | 'directory'
+  originalPostUrl String   // MANDATORY — source transparency
+  postText        String
+  matchedKeywords String[]
+  discoveredAt    DateTime @default(now())
+}
+
+// ─── Enrichment & Qualification ──────────────────────────────────────────────
+
+model EnrichmentData {
+  id              String   @id @default(uuid())
+  leadId          String   @unique
+  lead            Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fields          Json     // companySize, industry, techStack, funding, socialLinks, etc.
+  dataSource      String
+  confidenceScore Float
+  updatedAt       DateTime @updatedAt
+}
+
+model QualificationScore {
+  id                String   @id @default(uuid())
+  leadId            String   @unique
+  lead              Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fitScore          Float
+  intentScore       Float
+  reachabilityScore Float
+  reasoning         String   // LLM-generated explanation
+  priority          String   // HIGH | MEDIUM | LOW
+  scoredAt          DateTime @default(now())
+}
+
+// ─── Campaign ────────────────────────────────────────────────────────────────
+
+model Campaign {
+  id                String         @id @default(uuid())
+  organizationId    String
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name              String
+  goal              String
+  languages         String[]       // e.g. ['hi-IN', 'gu-IN', 'en-IN']
+  callingHoursStart String         // e.g. '09:00'
+  callingHoursEnd   String         // e.g. '18:00'
+  timezonePolicy    String         // e.g. 'lead-local-timezone'
+  maxRetries        Int            @default(3)
+  retrySpacingHrs   Int            @default(24)
+  status            CampaignStatus @default(DRAFT)
+  leads             Lead[]
+  calls             Call[]
+  createdAt         DateTime       @default(now())
+}
+
+// ─── Calls & Transcripts ─────────────────────────────────────────────────────
+
+model Call {
+  id               String          @id @default(uuid())
+  campaignId       String
+  campaign         Campaign        @relation(fields: [campaignId], references: [id])
+  leadId           String
+  lead             Lead            @relation(fields: [leadId], references: [id])
+  direction        CallDirection
+  telephonyCallSid String          @unique
+  status           String          // initiated | in-progress | completed | failed | no-answer | voicemail
+  language         String
+  attemptNumber    Int             @default(1)
+  transcript       TranscriptTurn[]
+  summary          String?
+  sentiment        String?         // interested | not-interested | callback | needs-followup | hostile
+  nextBestAction   String?
+  startedAt        DateTime        @default(now())
+  endedAt          DateTime?
+}
+
+model TranscriptTurn {
+  id        String   @id @default(uuid())
+  callId    String
+  call      Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  speaker   String   // 'agent' | 'human'
+  text      String
+  language  String
+  createdAt DateTime @default(now())
+}
+
+// ─── CRM & Integrations ──────────────────────────────────────────────────────
+
+model CRMConnection {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String       // 'salesforce' | 'hubspot' | 'zoho'
+  credentials    Json         // encrypted at rest
+  lastSyncedAt   DateTime?
+}
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+model Subscription {
+  id               String       @id @default(uuid())
+  organizationId   String       @unique
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan             String
+  status           String       // active | past_due | canceled | trialing
+  voiceMinutesUsed Float        @default(0)
+  voiceMinutesCap  Float?
+  stripeCustomerId String?
+  stripeSubId      String?
+  renewsAt         DateTime?
+}
+
+// ─── Audit & Compliance ──────────────────────────────────────────────────────
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUserId    String?
+  action         String
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+}
+
+model FraudFlag {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type           String       // 'call_volume_anomaly' | 'dnc_violation' | 'login_anomaly'
+  details        Json
+  resolved       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model DncEntry {
+  phoneNumber String   @id  // stored as hash for privacy
+  reason      String?
+  addedAt     DateTime @default(now())
+}
+
+// ---------------------------------------------------------------
+// RAG � Knowledge Base, Sources, Chat
+// ---------------------------------------------------------------
+
+model KnowledgeBase {
+  id             String            @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  sources        KBSource[]
+  conversations  ChatConversation[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([organizationId])
+}
+
+model KBSource {
+  id                 String        @id @default(uuid())
+  knowledgeBaseId    String
+  knowledgeBase      KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  sourceType         String        // "website" | "pdf"
+  url                String?       // website only
+  fileName           String?       // pdf only
+  fileSize           Int?
+  // "pending" | "scraping" | "indexing" | "ready" | "error" | "partial"
+  status             String        @default("pending")
+  pagesDiscovered    Int           @default(0)
+  pagesIndexed       Int           @default(0)
+  pagesFailed        Int           @default(0)
+  chunksIndexed      Int           @default(0)
+  errorMessage       String?
+  lastSuccessfulScan DateTime?
+  scrapedAt          DateTime?
+  indexedAt          DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([knowledgeBaseId])
+}
+
+model ChatConversation {
+  id              String        @id @default(uuid())
+  organizationId  String
+  knowledgeBaseId String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  messages        ChatMessage[]
+  createdAt       DateTime      @default(now())
+
+  @@index([organizationId])
+  @@index([knowledgeBaseId])
+}
+
+model ChatMessage {
+  id             String           @id @default(uuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String           // "user" | "assistant"
+  content        String
+  citations      Json?            // [{title, url?, fileName?, pageNumber?}]
+  retrievalScore Float?           // max retrieval score (observability)
+  abstained      Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId])
+}

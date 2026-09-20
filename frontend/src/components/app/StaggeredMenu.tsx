@@ -125,7 +125,7 @@ export default function StaggeredMenu({
               <LangSwitcher />
               <button
                 onClick={closeMenu}
-                className="flex h-9 w-9 items-center justify-center border-2 border-lime bg-lime text-ink hover:bg-white transition-all active:scale-95 shadow"
+                className="flex h-9 w-9 items-center justify-center border-2 border-lime bg-lime text-black hover:bg-white hover:text-black transition-all active:scale-95 shadow"
                 aria-label="Close menu"
               >
                 <X className="h-5 w-5 stroke-[2.5]" />
@@ -214,7 +214,7 @@ export default function StaggeredMenu({
               <Link
                 to="/login"
                 onClick={closeMenu}
-                className="flex items-center justify-center gap-2 w-full border-2 border-lime bg-lime text-ink py-3 sm:py-3.5 font-mono text-xs sm:text-sm font-extrabold uppercase hover:bg-white hover:border-white transition-all shadow-xl active:scale-95"
+                className="flex items-center justify-center gap-2 w-full border-2 border-lime bg-lime text-black py-3 sm:py-3.5 font-mono text-xs sm:text-sm font-extrabold uppercase hover:bg-white hover:border-white hover:text-black transition-all shadow-xl active:scale-95"
               >
                 {isDashboard ? "Sign Out of Console ➔" : "Start Free Trial ↗"}
               </Link>
@@ -260,7 +260,7 @@ export default function StaggeredMenu({
         aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
         className={`flex h-9 w-9 items-center justify-center border-2 transition-all duration-200 active:scale-95 shadow-md shrink-0 ${
           isOpen
-            ? "border-lime bg-lime text-ink font-bold"
+            ? "border-lime bg-lime text-black font-bold"
             : "border-ink bg-card text-ink hover:border-violet hover:bg-secondary"
         }`}
       >

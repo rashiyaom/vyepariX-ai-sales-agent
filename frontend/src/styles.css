@@ -68,8 +68,8 @@
   --accent-foreground: oklch(0.98 0 0);
   --violet: oklch(0.55 0.24 291);
   --violet-foreground: oklch(0.98 0 0);
-  --lime: oklch(0.93 0.2 118);
-  --lime-foreground: oklch(0.17 0 0);
+  --lime: #d6ff44;
+  --lime-foreground: #0a0a0a;
   --destructive: oklch(0.55 0.23 27);
   --destructive-foreground: oklch(0.98 0 0);
   --danger: oklch(0.55 0.23 27);
@@ -96,6 +96,10 @@
   --border: oklch(0.97 0 0 / 18%);
   --input: oklch(0.97 0 0 / 22%);
   --ring: oklch(0.65 0.28 295);
+  --lime: #d6ff44;
+  --lime-foreground: #0a0a0a;
+  --violet: oklch(0.68 0.26 295);
+  --violet-foreground: oklch(0.98 0 0);
 }
 
 @utility brut-border {
@@ -381,16 +385,5 @@
     font-weight: 800;
     letter-spacing: -0.03em;
     text-transform: uppercase;
-  }
-}
-/* ─── PRINT STYLES — Intelligence Suite Executive Report ─── */
-@media print {
-  body {
-    background: oklch(0.99 0 0) !important;
-    color: oklch(0.1 0 0) !important;
-    background-image: none !important;
-  }
-  .no-print {
-    display: none !important;
   }
 }

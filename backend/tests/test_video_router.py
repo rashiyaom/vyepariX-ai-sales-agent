@@ -45,10 +45,7 @@ from app.routers import video_router
 
 def create_test_token(user_id: str, email: str = "test@example.com") -> str:
     """Creates a signed HS256 Supabase JWT token for testing."""
-    secret = os.getenv(
-        "SUPABASE_JWT_SECRET",
-        "sMDSG6Z5CsaPtAXFcEc1gIY/ZyvZHaPB3ooS9cDkZH6mzvAh0r1OGdFs3d7PxhLmjlVttaeduSMvFIIv1kD3Zw==",
-    )
+    secret = auth_middleware.SUPABASE_JWT_SECRET
     payload = {
         "sub": user_id,
         "email": email,

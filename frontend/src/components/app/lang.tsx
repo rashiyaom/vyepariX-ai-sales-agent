@@ -15,6 +15,7 @@ const T: Record<string, Record<Lang, string>> = {
   "group.voice": { en: "Voice", hi: "वॉयस", gu: "વૉઇસ" },
   "group.analytics": { en: "Analytics", hi: "विश्लेषण", gu: "એનાલિટિક્સ" },
   "group.admin": { en: "Admin", hi: "एडमिन", gu: "એડમિન" },
+  "group.ai": { en: "AI Knowledge", hi: "AI नॉलेज", gu: "AI નોલેજ" },
 
   // Nav labels
   "nav.onboarding": { en: "Business Onboarding", hi: "बिजनेस ऑनबोर्डिंग", gu: "બિઝનેસ ઑનબોર્ડિંગ" },
@@ -30,6 +31,7 @@ const T: Record<string, Record<Lang, string>> = {
   "nav.crm": { en: "CRM & Integrations", hi: "CRM और एकीकरण", gu: "CRM અને ઇન્ટિગ્રેશન" },
   "nav.admin": { en: "Admin Console", hi: "एडमिन कंसोल", gu: "એડમિન કન્સોલ" },
   "nav.workspace": { en: "Workspace", hi: "कार्यक्षेत्र", gu: "વર્કસ્પેસ" },
+  "nav.knowledgeBase": { en: "Knowledge Base", hi: "नॉलेज बेस", gu: "નોલેજ બેઝ" },
 
   // Overview stats
   "stat.leads": { en: "Leads discovered", hi: "लीड खोजे गए", gu: "લીડ શોધ્યા" },

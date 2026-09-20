@@ -41,7 +41,7 @@ def _make_result(url: str = "https://example.com", source: str = "ddg") -> Searc
 
 def run(coro):
     """Run a coroutine in the test event loop."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # ─────────────────────────── Test Cases ────────────────────────────────

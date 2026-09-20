@@ -102,7 +102,7 @@ async def create_single_call(
     Supports live Vapi/Twilio dispatch with automatic fallback to high-fidelity simulation.
     """
     resolved_user_id = payload.user_id
-    if not resolved_user_id and authorization:
+    if (not resolved_user_id or str(resolved_user_id).lower() in ("undefined", "null", "")) and authorization:
         try:
             auth_user = await auth_middleware.get_current_user(authorization)
             if auth_user:
@@ -284,7 +284,7 @@ async def list_calls(
 ):
     """List call history with optional filters and search."""
     resolved_user_id = user_id
-    if not resolved_user_id and authorization:
+    if (not resolved_user_id or str(resolved_user_id).lower() in ("undefined", "null", "")) and authorization:
         try:
             auth_user = await auth_middleware.get_current_user(authorization)
             if auth_user:
@@ -376,6 +376,21 @@ async def analyze_call(call_id: str):
     )
 
     await db.update_voice_call(call_id, {"analysis": analysis})
+
+    # Auto-book to calendar if meeting was scheduled
+    try:
+        await voice_engine._maybe_auto_book_calendar(
+            call_id=call_id,
+            analysis=analysis,
+            transcript=transcript,
+            customer_name=call.get("customer_name"),
+            customer_phone=call.get("customer_phone"),
+            business_name=call.get("business_name"),
+            user_id=call.get("user_id"),
+        )
+    except Exception as e:
+        logger.warning(f"Error auto-booking calendar event from analyze endpoint: {e}")
+
     return {"success": True, "call_id": call_id, "analysis": analysis}
 
 
@@ -563,7 +578,7 @@ async def get_stats(
 ):
     """Retrieve aggregate statistics for dashboard metric cards."""
     resolved_user_id = user_id
-    if not resolved_user_id and authorization:
+    if (not resolved_user_id or str(resolved_user_id).lower() in ("undefined", "null", "")) and authorization:
         try:
             auth_user = await auth_middleware.get_current_user(authorization)
             if auth_user:

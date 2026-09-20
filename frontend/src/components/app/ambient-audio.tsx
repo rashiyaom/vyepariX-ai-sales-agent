@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Volume2, VolumeX, Play, Pause, Radio, Sparkles } from "lucide-react";
-import { useAuth } from "@/lib/auth";
 
 /**
  * Ambient background audio controller for "Spark.mp3".
- * - Only active for unauthenticated visitors.
- * - Disables and stops immediately when a user is logged in.
+ * - Plays IMMEDIATELY when the website opens on both desktop and mobile.
+ * - Employs a zero-latency multi-gesture listener (touchstart, pointerdown, scroll, wheel, click)
+ *   so sound begins the exact microsecond any interaction occurs if browser policy blocked unmuted autoplay.
+ * - Perfectly centered on phone screens via createPortal and docked bottom-right on desktops.
  */
 export function AmbientAudioPlayer() {
-  const { isAuthenticated } = useAuth();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(0.55);
@@ -18,17 +18,6 @@ export function AmbientAudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // When user is authenticated / logged in, stop audio completely and do not mount listeners
-    if (isAuthenticated) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        audioRef.current = null;
-      }
-      setIsPlaying(false);
-      return;
-    }
-
     setMounted(true);
 
     const audio = new Audio("/Spark.mp3");
@@ -137,7 +126,7 @@ export function AmbientAudioPlayer() {
     setIsMuted((m) => !m);
   };
 
-  if (isAuthenticated || !mounted || typeof document === "undefined") {
+  if (!mounted || typeof document === "undefined") {
     return null;
   }
 

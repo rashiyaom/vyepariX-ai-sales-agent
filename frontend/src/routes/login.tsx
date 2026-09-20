@@ -4,32 +4,30 @@ import {
   ArrowUpRight,
   Loader2,
   Sparkles,
-  Building,
-  Mail,
-  Lock,
-  User,
-  ShieldCheck,
-  Zap,
+  FileText,
   CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-  Send,
+  Radio,
+  UploadCloud,
+  Check,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Logo } from "@/components/site/Chrome";
 import { LangSwitcher, useLang } from "@/components/app/lang";
 import { ThemeToggle } from "@/components/app/theme";
-import { useAuth } from "@/lib/auth";
-import { GoogleLogin } from "@react-oauth/google";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Sign In & Create Account — VYAPERI X AI Sales Platform" },
+      { title: "Sign In & Onboarding — VYAPERI X AI Sales Platform" },
       {
         name: "description",
         content:
-          "Sign in to your VYAPERI X workspace or start a free 14-day trial with Supabase JWT authentication and Google login.",
+          "Sign in to your VYAPERI X workspace or start a free 14-day trial. Experience our 11-step autonomous pipeline from onboarding to multilingual voice conversion.",
+      },
+      { property: "og:title", content: "Sign In & Onboarding — VYAPERI X AI Sales Platform" },
+      {
+        property: "og:description",
+        content: "Sign in to the VYAPERI X sales operations dashboard.",
       },
     ],
   }),
@@ -67,6 +65,58 @@ function useTypewriter(texts: string[], speed = 55, pause = 1800) {
   return displayed;
 }
 
+/* Animated terminal lines representing all 11 steps of the autonomous pipeline */
+function TerminalPanel() {
+  const LINES = [
+    "> 01.onboard.ingest    --url=futurrizon.com --docs=2_files",
+    "> 02.llm.understand    --extract=services,icp,keywords",
+    "> 03.mode.select       --cadence=leads_and_calling",
+    "> 04.discovery.radar   --sweep=linkedin,x,rfp,directories",
+    "> 05.enrichment.mx     --resolve=email,phone,firmographics",
+    "> 06.qualify.icp       --score=94% --tier=enterprise_hot",
+    "> 07.campaign.sched    --tz=Asia/Kolkata --cadence=biz_hours",
+    "> 08.voice.fleet       --agent=Dhruv --lang=Gujarati --dialling",
+    "> 09.capture.telemetry --sentiment=HIGH --transcript=synced",
+    "> 10.surface.handoff   --crm=HubSpot --notify=regional_ae",
+    "> 11.analytics.repeat  --roi=+340% --loop=iterating",
+  ];
+  const [visible, setVisible] = useState<string[]>([]);
+  const idx = useRef(0);
+
+  useEffect(() => {
+    const push = () => {
+      idx.current = (idx.current + 1) % LINES.length;
+      setVisible((prev) => [...prev.slice(-5), LINES[idx.current]!]);
+    };
+    push();
+    const id = setInterval(push, 1400);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <pre className="relative font-mono text-[11px] leading-relaxed text-paper/50">
+      {visible.map((line, i) => (
+        <div
+          key={`${line}-${i}`}
+          className={`transition-opacity duration-500 ${i === visible.length - 1 ? "text-lime" : ""}`}
+        >
+          {line}
+          {i === visible.length - 1 && (
+            <span
+              className="border-r-2 border-lime ml-0.5"
+              style={{ animation: "typing-cursor 0.8s step-end infinite" }}
+            >
+              &nbsp;
+            </span>
+          )}
+        </div>
+      ))}
+    </pre>
+  );
+}
+
+/* Animated counter for social proof */
 function Counter({ end, label, suffix = "" }: { end: number; label: string; suffix?: string }) {
   const [val, setVal] = useState(0);
   useEffect(() => {
@@ -93,396 +143,77 @@ function Counter({ end, label, suffix = "" }: { end: number; label: string; suff
   );
 }
 
-function GoogleIcon() {
-  return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24">
-      <path
-        fill="#4285F4"
-        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.15C3.26 21.36 7.33 24 12 24z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.26C.46 8.16 0 9.98 0 12s.46 3.84 1.26 5.42l4.02-3.15z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.26 6.58l4.02 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-      />
-    </svg>
-  );
-}
-
 function LoginPage() {
-  const API_BASE = (import.meta.env["VITE_SCRAPER_API_BASE"] as string) || "http://localhost:8000";
   const { t } = useLang();
-  const navigate = useNavigate();
-  const {
-    user,
-    session,
-    profile,
-    signInWithGoogle,
-    signInWithEmail,
-    signUpWithEmail,
-    resendVerificationEmail,
-    resetPassword,
-  } = useAuth();
-
-  const [tab, setTab] = useState<"Signup" | "Signin" | "Forgot">("Signup");
+  const [tab, setTab] = useState<"Sign In" | "Free Trial" | "API Key">("Free Trial");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const navigate = useNavigate();
 
-  // Email verification state
-  const [verificationPending, setVerificationPending] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState("");
-  const [resendingEmail, setResendingEmail] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-
-  // Form inputs
-  const [fullName, setFullName] = useState("");
-  const [workEmail, setWorkEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [industry, setIndustry] = useState("SaaS / Technology");
-
-  // If already authenticated, redirect to onboarding or dashboard
-  useEffect(() => {
-    if (session && user) {
-      if (profile && !profile.onboarding_completed) {
-        navigate({ to: "/onboarding" });
-      } else {
-        navigate({ to: "/dashboard" });
-      }
-    }
-  }, [session, user, profile, navigate]);
-
-  // Resend cooldown timer
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const interval = setInterval(() => {
-      setResendCooldown((prev) => prev - 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [resendCooldown]);
+  // 3-Stage Guided Onboarding State for "Free Trial"
+  const [onboardStep, setOnboardStep] = useState<1 | 2 | 3>(1);
+  const [businessUrl, setBusinessUrl] = useState("futurrizon.com");
+  const [businessDesc, setBusinessDesc] = useState(
+    "Enterprise Cloud Modernization, ERP Solutions & AI Automation",
+  );
+  const [uploadedDocs, setUploadedDocs] = useState([
+    "Capability_Statement_2026.pdf",
+    "Product_Pricing_Deck.pdf",
+  ]);
+  const [mode, setMode] = useState<"leads_and_calling" | "calling_only">("leads_and_calling");
+  const [analyzingLlm, setAnalyzingLlm] = useState(false);
 
   const headlines = [
-    t("login.tagline") || "Autonomous AI Sales Intelligence",
-    "11-Step Autonomous Pipeline",
-    "Lead Radar → Intelligence → Voice SDRs",
-    "Close Enterprise Deals on Autopilot",
+    t("login.tagline"),
+    "11-Step Autonomous Sales Flow",
+    "सुनो · समझो · सौदा करो",
+    "Leads → Meetings → Revenue",
+    "AI जो बेचता है, आप जो जीतते हैं",
   ];
   const headline = useTypewriter(headlines);
 
   const personas = [
-    { key: "Enterprise Account Executive", desc: "Full pipeline + voice fleet", company: "Apex Global Dynamics" },
-    { key: "SDR Team Lead", desc: "Prospect discovery + cold conversion", company: "Krypton Commerce" },
-    { key: "Growth Founder", desc: "Commercial due-diligence + radar", company: "Synthetix AI Lab" },
-    { key: "Commercial Analyst", desc: "Multi-source PDF/CSV/Web reports", company: "Meridian Partners" },
+    { key: "Sales Manager", desc: "Campaigns + analytics" },
+    { key: "SDR", desc: "Lead discovery + calls" },
+    { key: "Admin", desc: "Full platform access" },
+    { key: "Analyst", desc: "Read-only reports" },
   ];
 
-  const handleGoogleLogin = async () => {
-    setErrorMessage(null);
-    setGoogleLoading(true);
-    try {
-      await signInWithGoogle();
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Google authentication failed.");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  /* ─── Instant Admin Provisioning Bypass (Rate Limit Solution) ─── */
-  const handleBypassRegister = async () => {
-    if (!workEmail || !password) {
-      setErrorMessage("Please enter both work email and password.");
-      return;
-    }
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: workEmail,
-          password: password,
-          full_name: fullName,
-          company_name: companyName,
-          industry: industry,
-          auto_confirm: true,
-        }),
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.detail || "Failed to provision account.");
-      }
-
-      const { session: authedSession, error: signInErr } = await signInWithEmail(
-        workEmail,
-        password
-      );
-
-      if (signInErr) {
-        throw new Error(signInErr.message);
-      }
-
-      if (authedSession) {
-        setSuccessMessage("✓ Workspace activated! Launching onboarding…");
-        try {
-          sessionStorage.setItem(
-            "vyaperi_onboarding",
-            JSON.stringify({
-              name: fullName || "Sales Leader",
-              email: workEmail,
-              company: companyName || "My Enterprise",
-              industry,
-              teamSize: "2–10",
-              useCase: "full_cycle",
-              source: "Admin Provisioned",
-            })
-          );
-        } catch {}
-        setTimeout(() => navigate({ to: "/onboarding" }), 600);
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to provision workspace.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ─── Sign Up Handler (Supabase) ─── */
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    if (!workEmail || !password) {
-      setErrorMessage("Please enter both work email and password.");
-      return;
-    }
-    if (password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters long.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { user, session: newSession, error, needsVerification } = await signUpWithEmail(
-        workEmail,
-        password,
-        {
-          full_name: fullName,
-          company_name: companyName,
-          industry,
-        }
-      );
-
-      if (error && error.message?.toLowerCase().includes("rate limit")) {
-        console.info("Supabase email rate limit exceeded — activating admin provisioning bypass...");
-        try {
-          const bypassRes = await fetch(`${API_BASE}/api/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: workEmail,
-              password: password,
-              full_name: fullName,
-              company_name: companyName,
-              industry: industry,
-              auto_confirm: true,
-            }),
-          });
-
-          if (bypassRes.ok) {
-            const { session: authedSession, error: signInErr } = await signInWithEmail(
-              workEmail,
-              password
-            );
-
-            if (!signInErr && authedSession) {
-              setSuccessMessage("✓ Workspace Provisioned! Launching onboarding…");
-              try {
-                sessionStorage.setItem(
-                  "vyaperi_onboarding",
-                  JSON.stringify({
-                    name: fullName || "Sales Leader",
-                    email: workEmail,
-                    company: companyName || "My Enterprise",
-                    industry,
-                    teamSize: "2–10",
-                    useCase: "full_cycle",
-                    source: "Admin Provisioned",
-                  })
-                );
-              } catch {}
-              setTimeout(() => navigate({ to: "/onboarding" }), 600);
-              return;
-            }
-          }
-        } catch (adminErr) {
-          console.warn("Admin bypass failed:", adminErr);
-        }
-      }
-
-      if (error) {
-        setErrorMessage(error.message);
-        setLoading(false);
-        return;
-      }
-
-      // Store local onboarding intent
-      try {
-        sessionStorage.setItem(
-          "vyaperi_onboarding",
-          JSON.stringify({
-            name: fullName || "Sales Leader",
-            email: workEmail,
-            company: companyName || "My Enterprise",
-            industry,
-            teamSize: "2–10",
-            useCase: "full_cycle",
-            source: "Supabase Sign Up",
-          })
-        );
-      } catch {}
-
-      if (needsVerification || (!newSession && user)) {
-        setPendingEmail(workEmail);
-        setVerificationPending(true);
-        setResendCooldown(30);
-      } else if (newSession) {
-        setSuccessMessage("Account created! Launching your onboarding journey…");
-        setTimeout(() => navigate({ to: "/onboarding" }), 800);
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to create account.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ─── Sign In Handler (Supabase) ─── */
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    if (!workEmail || !password) {
-      setErrorMessage("Please enter both work email and password.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { user: authedUser, session: authedSession, error } = await signInWithEmail(
-        workEmail,
-        password
-      );
-
-      if (error) {
-        if (
-          error.message?.toLowerCase().includes("email not confirmed") ||
-          error.message?.toLowerCase().includes("not verified")
-        ) {
-          setPendingEmail(workEmail);
-          setErrorMessage(
-            "Your email address has not been confirmed yet. Please verify your email using the link sent to your inbox."
-          );
-        } else {
-          setErrorMessage(error.message || "Invalid email or password.");
-        }
-        setLoading(false);
-        return;
-      }
-
-      if (authedSession && authedUser) {
-        setSuccessMessage("✓ Authenticated! Opening your workspace…");
-        const isDone = Boolean(authedUser.user_metadata?.["onboarding_completed"]);
-        setTimeout(() => {
-          navigate({ to: isDone ? "/dashboard" : "/onboarding" });
-        }, 600);
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Sign in failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ─── Resend Verification Email ─── */
-  const handleResendVerification = async () => {
-    if (!pendingEmail) return;
-    setResendingEmail(true);
-    setErrorMessage(null);
-    try {
-      const { error } = await resendVerificationEmail(pendingEmail);
-      if (error) {
-        setErrorMessage(error.message);
-      } else {
-        setSuccessMessage(`✓ Verification email resent to ${pendingEmail}`);
-        setResendCooldown(45);
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to resend verification email.");
-    } finally {
-      setResendingEmail(false);
-    }
-  };
-
-  /* ─── Forgot Password ─── */
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    if (!workEmail) {
-      setErrorMessage("Please provide your work email to send a reset link.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error } = await resetPassword(workEmail);
-      if (error) {
-        setErrorMessage(error.message);
-      } else {
-        setSuccessMessage(`✓ Password reset email sent to ${workEmail}. Please check your inbox.`);
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to send reset link.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ─── Instant Sandbox Persona Login ─── */
-  const handlePersonaLogin = (persona: (typeof personas)[0]) => {
-    setLoading(true);
-    try {
-      sessionStorage.setItem(
-        "vyaperi_onboarding",
-        JSON.stringify({ company: persona.company, industry: "B2B Tech" })
-      );
-    } catch {}
+  const handleLlmAnalysis = () => {
+    setAnalyzingLlm(true);
     setTimeout(() => {
-      navigate({ to: "/dashboard" });
-    }, 400);
+      setAnalyzingLlm(false);
+      setOnboardStep(2);
+    }, 1100);
+  };
+
+  const handleFinishOnboarding = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      setSuccess(true);
+      setTimeout(() => navigate({ to: "/onboarding" }), 600);
+    }, 1200);
+  };
+
+  const handleSubmitSignIn = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      setSuccess(true);
+      const isConfirmed = localStorage.getItem("vyaperi_profile_confirmed") === "true";
+      setTimeout(() => navigate({ to: isConfirmed ? "/dashboard" : "/onboarding" }), 600);
+    }, 1200);
   };
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
-      {/* ── Left Branding Panel ── */}
+      {/* ── Left panel ── */}
       <div className="relative hidden flex-col justify-between border-r border-ink bg-ink p-12 text-paper lg:flex overflow-hidden">
         <div className="grid-paper absolute inset-0 opacity-20" />
 
-        {/* Top Brand Bar */}
-        <div className="flex items-center justify-between relative z-10">
+        {/* Brand */}
+        <div className="flex items-center justify-between">
           <Logo />
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -490,9 +221,9 @@ function LoginPage() {
           </div>
         </div>
 
-        {/* Dynamic Typewriter Hero */}
-        <div className="relative z-10 space-y-6">
-          <div className="min-h-[5.5rem] font-display text-[clamp(2rem,4.2vw,3.6rem)] font-extrabold leading-[0.9]">
+        {/* Headline with typewriter */}
+        <div className="relative">
+          <div className="min-h-[6rem] font-display text-[clamp(2rem,4.5vw,3.8rem)] font-extrabold leading-[0.88]">
             {headline}
             <span
               className="border-r-2 border-lime ml-1"
@@ -501,38 +232,40 @@ function LoginPage() {
               &nbsp;
             </span>
           </div>
-          <p className="max-w-md font-mono text-xs leading-relaxed text-paper/70">
-            Autonomous multi-source intelligence, 40+ signal buying intent discovery radar, and multilingual voice SDR fleet. Powered by Supabase Auth & Postgres.
+          <p className="mt-6 max-w-sm font-mono text-xs leading-relaxed text-paper/60">
+            {t("login.desc")}
           </p>
 
-          {/* Metrics */}
-          <div className="grid grid-cols-3 gap-px border border-paper/15 bg-paper/10">
-            <Counter end={11} label="Pipeline Gates" suffix="" />
-            <Counter end={40} label="Signal Feeds" suffix="+" />
-            <Counter end={14} label="Hours Saved / Wk" suffix="h" />
+          {/* Social-proof counters */}
+          <div className="mt-8 grid grid-cols-3 gap-px border border-paper/10 bg-paper/10">
+            <Counter end={11} label="Engine Steps" suffix="" />
+            <Counter end={4200} label="Leads / day" suffix="+" />
+            <Counter end={61} label="Connect rate" suffix="%" />
           </div>
         </div>
 
-        {/* Bottom Feature Badges */}
-        <div className="relative z-10 flex items-center gap-6 border-t border-paper/15 pt-6 text-paper/60 font-mono text-xs">
-          <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-lime" /> Supabase JWT Encrypted
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Zap className="w-4 h-4 text-lime" /> Instant Workspace Provisioning
-          </span>
-        </div>
+        {/* Terminal */}
+        <TerminalPanel />
+
+        {/* Pulsing orbs - decorative */}
+        <div
+          className="absolute bottom-20 right-10 h-32 w-32 rounded-full bg-violet/10 blur-2xl"
+          style={{ animation: "live-dot 3s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute top-32 right-6 h-20 w-20 rounded-full bg-lime/10 blur-xl"
+          style={{ animation: "live-dot 2.2s ease-in-out infinite", animationDelay: "0.8s" }}
+        />
       </div>
 
-      {/* ── Right Auth Form Panel ── */}
+      {/* ── Right panel ── */}
       <div className="flex flex-col bg-paper">
-        {/* Top bar */}
         <div className="flex items-center justify-between border-b border-ink/20 px-6 py-4">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 label-mono hover:text-violet transition-colors text-xs"
+            className="inline-flex items-center gap-2 label-mono hover:text-violet transition-colors"
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Home
+            <ArrowLeft className="h-3.5 w-3.5" /> {t("login.back")}
           </Link>
           <span className="lg:hidden">
             <Logo />
@@ -543,380 +276,387 @@ function LoginPage() {
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-lg flex-1 px-6 py-8 flex flex-col justify-center">
-          <div className="space-y-1">
-            <span className="label-mono text-violet font-bold text-xs">// Supabase Authenticated Access</span>
-            <h2 className="font-display text-3xl font-extrabold uppercase">
-              {verificationPending
-                ? "Verify Your Email"
-                : tab === "Signup"
-                ? "Start Free 14-Day Trial"
-                : tab === "Signin"
-                ? "Sign In to Console"
-                : "Reset Your Password"}
-            </h2>
-            <p className="font-mono text-xs text-muted-foreground">
-              {verificationPending
-                ? "We sent an activation link to your email to verify your workspace."
-                : tab === "Signup"
-                ? "Create your workspace to experience the complete intelligence & sales suite."
-                : tab === "Signin"
-                ? "Enter your credentials to access your autonomous sales console."
-                : "Enter your work email and we will send you a secure password recovery link."}
-            </p>
+        <div className="mx-auto w-full max-w-lg flex-1 px-6 py-8">
+          <span className="label-mono text-violet fade-in">// Autonomous Pipeline Setup</span>
+          <h2 className="mt-2 font-display text-3xl font-extrabold fade-in anim-d-100">
+            {tab === "Free Trial" ? "Start Autonomous Onboarding" : t("login.signin")}
+          </h2>
+          <p className="mt-2 font-mono text-xs leading-relaxed text-muted-foreground fade-in anim-d-200">
+            {tab === "Free Trial"
+              ? "Experience the complete 11-step sales automation flow in under 2 minutes."
+              : "Authenticate with workspace credentials or a bearer API key."}
+          </p>
+
+          {/* Tabs */}
+          <div className="mt-6 grid grid-cols-3 gap-px border border-ink bg-ink/15 fade-in anim-d-300">
+            {(["Free Trial", "Sign In", "API Key"] as const).map((t_) => (
+              <button
+                key={t_}
+                onClick={() => setTab(t_)}
+                className={`px-2 py-2.5 label-mono text-xs transition-all ${
+                  tab === t_ ? "bg-ink text-paper" : "bg-paper hover:bg-secondary"
+                }`}
+              >
+                {t_ === "Sign In"
+                  ? t("login.signin")
+                  : t_ === "Free Trial"
+                    ? "11-Step Onboarding"
+                    : t("login.api")}
+              </button>
+            ))}
           </div>
 
-          {/* Feedback Alerts */}
-          {errorMessage && (
-            <div className="mt-4 border border-danger/40 bg-danger/10 p-3 text-xs font-mono text-danger flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p>{errorMessage}</p>
-                {errorMessage.toLowerCase().includes("rate limit") && (
-                  <button
-                    type="button"
-                    onClick={handleBypassRegister}
-                    disabled={loading}
-                    className="mt-2 inline-flex items-center gap-1.5 border border-ink bg-ink text-paper px-3 py-1.5 font-mono text-[11px] font-bold hover:bg-violet hover:border-violet transition-colors shadow"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-lime" /> Activate Workspace Instantly (Bypass Email Rate Limit)
-                  </button>
-                )}
-                {pendingEmail && (
-                  <button
-                    type="button"
-                    onClick={handleResendVerification}
-                    disabled={resendingEmail || resendCooldown > 0}
-                    className="underline text-ink font-bold hover:text-violet block text-[11px]"
-                  >
-                    {resendingEmail
-                      ? "Resending..."
-                      : resendCooldown > 0
-                      ? `Resend in ${resendCooldown}s`
-                      : "Resend verification link"}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="mt-4 border border-lime/40 bg-lime/10 p-3 text-xs font-mono text-lime-800 dark:text-lime flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-lime" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {/* Verification Screen */}
-          {verificationPending ? (
-            <div className="mt-6 border border-ink/20 bg-secondary/20 p-6 space-y-4 text-center">
-              <div className="mx-auto w-12 h-12 border border-violet bg-violet/10 text-violet flex items-center justify-center rounded-full">
-                <Mail className="w-6 h-6 animate-pulse" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-display text-lg font-bold uppercase">Check Your Inbox</h3>
-                <p className="font-mono text-xs text-muted-foreground">
-                  A custom Vyepari X verification email was sent to:
-                </p>
-                <div className="font-mono text-xs font-bold text-ink bg-paper border border-ink/20 py-1.5 px-3 inline-block">
-                  {pendingEmail}
-                </div>
-              </div>
-
-              <p className="font-mono text-[11px] text-muted-foreground leading-relaxed">
-                Click the confirmation link inside the email to activate your workspace and continue directly into the 11-step intelligence onboarding journey.
-              </p>
-
-              <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+          {/* Form Area */}
+          {tab === "Free Trial" ? (
+            <div className="mt-6 space-y-5 fade-in anim-d-400">
+              {/* Step Progress Bar */}
+              <div className="grid grid-cols-3 gap-2 font-mono text-[11px] border border-ink/20 p-2 bg-secondary">
                 <button
                   type="button"
-                  onClick={handleResendVerification}
-                  disabled={resendingEmail || resendCooldown > 0}
-                  className="border border-ink/30 bg-paper px-4 py-2.5 label-mono text-xs font-bold hover:border-violet hover:bg-secondary transition-all flex items-center justify-center gap-1.5"
+                  onClick={() => setOnboardStep(1)}
+                  className={`p-1.5 text-left border ${
+                    onboardStep === 1
+                      ? "bg-ink text-paper border-ink font-bold"
+                      : "bg-paper text-muted-foreground border-transparent"
+                  }`}
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${resendingEmail ? "animate-spin" : ""}`} />
-                  {resendingEmail
-                    ? "Sending..."
-                    : resendCooldown > 0
-                    ? `Resend in ${resendCooldown}s`
-                    : "Resend Email"}
+                  01. Ingestion
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setVerificationPending(false);
-                    setTab("Signin");
-                  }}
-                  className="border border-ink bg-ink text-paper px-4 py-2.5 label-mono text-xs font-bold hover:border-violet hover:bg-violet transition-all flex items-center justify-center gap-1.5 shadow"
+                  onClick={() => setOnboardStep(2)}
+                  className={`p-1.5 text-left border ${
+                    onboardStep === 2
+                      ? "bg-ink text-paper border-ink font-bold"
+                      : "bg-paper text-muted-foreground border-transparent"
+                  }`}
                 >
-                  Go to Sign In <ArrowUpRight className="w-3.5 h-3.5" />
+                  02. LLM Engine
                 </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Tabs */}
-              <div className="mt-6 grid grid-cols-2 gap-px border border-ink bg-ink/15">
-                {[
-                  { id: "Signup", label: "Create Account" },
-                  { id: "Signin", label: "Sign In" },
-                ].map(({ id, label }) => (
-                  <button
-                    key={id}
-                    onClick={() => {
-                      setTab(id as any);
-                      setErrorMessage(null);
-                      setSuccessMessage(null);
-                    }}
-                    className={`py-2.5 label-mono text-xs font-bold transition-all ${
-                      tab === id ? "bg-ink text-paper" : "bg-paper text-muted-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* 1-Click Google OAuth */}
-              <div className="mt-5">
                 <button
                   type="button"
-                  onClick={handleGoogleLogin}
-                  disabled={googleLoading || loading}
-                  className="w-full border border-ink/30 bg-paper py-3 px-4 font-mono text-xs font-bold text-ink hover:border-violet hover:bg-secondary/40 active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 shadow-sm"
+                  onClick={() => setOnboardStep(3)}
+                  className={`p-1.5 text-left border ${
+                    onboardStep === 3
+                      ? "bg-ink text-paper border-ink font-bold"
+                      : "bg-paper text-muted-foreground border-transparent"
+                  }`}
                 >
-                  {googleLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-violet" />
-                  ) : (
-                    <GoogleIcon />
-                  )}
-                  <span>Continue with Google</span>
+                  03. Mode Select
                 </button>
+              </div>
 
-                <div className="relative my-5">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-ink/15" />
+              {/* Sub-step 1: Ingestion */}
+              {onboardStep === 1 && (
+                <div className="space-y-4 border border-ink bg-card p-5">
+                  <div className="label-mono text-xs text-violet font-bold">
+                    // Step 1: Business Ingestion
                   </div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-mono">
-                    <span className="bg-paper px-3 text-muted-foreground">Or with work email</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Form 1: Sign Up */}
-              {tab === "Signup" && (
-                <form onSubmit={handleSignUp} className="space-y-4">
+                  <p className="font-mono text-xs text-muted-foreground">
+                    Submit your company URL, description or collateral so our LLM can learn your
+                    product offerings.
+                  </p>
                   <Field
-                    label="Full Name"
+                    label="Company Website / URL"
                     type="text"
-                    placeholder="e.g. Sarah Jenkins"
-                    value={fullName}
-                    onChange={setFullName}
-                    icon={User}
+                    value={businessUrl}
+                    onChange={(v) => setBusinessUrl(v)}
+                    placeholder="e.g. futurrizon.com"
                   />
-                  <Field
-                    label="Work Email"
-                    type="email"
-                    placeholder="you@company.com"
-                    value={workEmail}
-                    onChange={setWorkEmail}
-                    icon={Mail}
-                  />
-                  <Field
-                    label="Password (min. 6 chars)"
-                    type="password"
-                    placeholder="••••••••••••"
-                    value={password}
-                    onChange={setPassword}
-                    icon={Lock}
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Field
-                      label="Company Name"
-                      type="text"
-                      placeholder="e.g. Acme Corp"
-                      value={companyName}
-                      onChange={setCompanyName}
-                      icon={Building}
+                  <div className="block">
+                    <span className="label-mono text-muted-foreground">
+                      Business Overview / Description
+                    </span>
+                    <textarea
+                      value={businessDesc}
+                      onChange={(e) => setBusinessDesc(e.target.value)}
+                      rows={2}
+                      className="mt-2 w-full border border-ink bg-transparent px-3 py-2 font-mono text-xs text-ink outline-none focus:border-violet focus:ring-2 focus:ring-violet/20"
                     />
-                    <label className="block">
-                      <span className="label-mono text-xs text-muted-foreground">Industry</span>
-                      <select
-                        value={industry}
-                        onChange={(e) => setIndustry(e.target.value)}
-                        className="mt-1.5 w-full border border-ink/30 bg-paper px-3 py-2.5 font-mono text-xs text-ink outline-none focus:border-violet focus:ring-1 focus:ring-violet transition-all"
+                  </div>
+
+                  <div>
+                    <span className="label-mono text-muted-foreground block mb-1.5">
+                      Attached Documentation & Decks
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {uploadedDocs.map((doc) => (
+                        <span
+                          key={doc}
+                          className="inline-flex items-center gap-1.5 bg-paper border border-ink/20 px-2.5 py-1 font-mono text-[11px]"
+                        >
+                          <FileText className="h-3 w-3 text-violet" /> {doc}
+                        </span>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setUploadedDocs((p) => [...p, `Catalog_Update_${p.length + 1}.pdf`])
+                        }
+                        className="inline-flex items-center gap-1 border border-dashed border-ink/40 px-2 py-1 font-mono text-[11px] text-muted-foreground hover:border-violet hover:text-violet"
                       >
-                        <option value="SaaS / Technology">SaaS / Technology</option>
-                        <option value="Financial Services">Financial Services</option>
-                        <option value="Manufacturing & Supply">Manufacturing & Supply</option>
-                        <option value="Healthcare & Bio">Healthcare & Bio</option>
-                        <option value="Agency & Services">Agency & Services</option>
-                      </select>
+                        <UploadCloud className="h-3 w-3" /> + Add Doc
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleLlmAnalysis}
+                    disabled={analyzingLlm}
+                    className="w-full mt-2 inline-flex items-center justify-center gap-2 border border-ink bg-ink px-4 py-3 label-mono text-paper hover:bg-violet hover:border-violet transition-all active:scale-[0.98]"
+                  >
+                    {analyzingLlm ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing with LLM
+                        Reasoning…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" /> Run Business Understanding Engine →
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Sub-step 2: LLM Engine */}
+              {onboardStep === 2 && (
+                <div className="space-y-4 border border-ink bg-card p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="label-mono text-xs text-violet font-bold">
+                      // Step 2: Derived Business Profile
+                    </span>
+                    <span className="label-mono text-[10px] text-emerald-700 dark:text-lime flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> LLM Analysis Complete
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 font-mono text-xs">
+                    <div className="border border-ink/15 bg-paper p-3 space-y-1">
+                      <span className="font-bold text-ink">Derived Services:</span>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {[
+                          "Cloud ERP Modernization",
+                          "SharePoint & M365 Setup",
+                          "Multilingual AI Voice Fleet",
+                          "Snowflake Analytics",
+                        ].map((s) => (
+                          <span
+                            key={s}
+                            className="bg-violet/10 text-violet px-2 py-0.5 border border-violet/20 text-[10px]"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="border border-ink/15 bg-paper p-3 space-y-1">
+                      <span className="font-bold text-ink">
+                        Derived Ideal Customer Profile (ICP):
+                      </span>
+                      <p className="text-muted-foreground text-[11px] leading-relaxed">
+                        VP Tech, IT Director, COO & Head of Transformation at Mid-Market firms
+                        (200–5,000 headcount) in Manufacturing, Logistics & Retail.
+                      </p>
+                    </div>
+
+                    <div className="border border-ink/15 bg-paper p-3 space-y-1">
+                      <span className="font-bold text-ink">Target Intent Keywords:</span>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {[
+                          "SharePoint partner",
+                          "Cloud ERP vendor",
+                          "warehouse GST",
+                          "AI voice vendor",
+                        ].map((k) => (
+                          <span
+                            key={k}
+                            className="bg-secondary px-2 py-0.5 border border-ink/10 text-[10px]"
+                          >
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setOnboardStep(1)}
+                      className="border border-ink/30 px-3 py-2.5 label-mono text-xs hover:bg-secondary"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOnboardStep(3)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 border border-ink bg-ink px-4 py-2.5 label-mono text-paper hover:bg-violet hover:border-violet transition-all"
+                    >
+                      Proceed to Mode Selection →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-step 3: Mode Selection */}
+              {onboardStep === 3 && (
+                <form
+                  onSubmit={handleFinishOnboarding}
+                  className="space-y-4 border border-ink bg-card p-5"
+                >
+                  <div className="label-mono text-xs text-violet font-bold">
+                    // Step 3: Select Operational Mode
+                  </div>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    Choose how your sales pipeline should execute leads:
+                  </p>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label
+                      onClick={() => setMode("calling_only")}
+                      className={`cursor-pointer p-4 border transition-all flex flex-col justify-between ${
+                        mode === "calling_only"
+                          ? "bg-paper border-violet ring-2 ring-violet/20 shadow"
+                          : "bg-paper/50 border-ink/20 hover:border-ink"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-display font-bold text-xs">Calling Only</span>
+                          <span
+                            className={`h-3 w-3 rounded-full border ${mode === "calling_only" ? "bg-violet border-violet" : "border-ink/40"}`}
+                          />
+                        </div>
+                        <p className="mt-2 font-mono text-[10px] text-muted-foreground leading-relaxed">
+                          User uploads leads via CSV/Excel or CRM sync. Deploys multilingual AI
+                          voice fleet without public scraping.
+                        </p>
+                      </div>
+                      <span className="mt-3 label-mono text-[9px] text-violet">
+                        BYO Leads (CSV/CRM)
+                      </span>
+                    </label>
+
+                    <label
+                      onClick={() => setMode("leads_and_calling")}
+                      className={`cursor-pointer p-4 border transition-all flex flex-col justify-between ${
+                        mode === "leads_and_calling"
+                          ? "bg-paper border-lime ring-2 ring-lime/20 shadow"
+                          : "bg-paper/50 border-ink/20 hover:border-ink"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-display font-bold text-xs">Leads + Calling</span>
+                          <span
+                            className={`h-3 w-3 rounded-full border ${mode === "leads_and_calling" ? "bg-lime border-lime" : "border-ink/40"}`}
+                          />
+                        </div>
+                        <p className="mt-2 font-mono text-[10px] text-muted-foreground leading-relaxed">
+                          Autonomous AI Discovery Engine scans 40+ public channels for live buyer
+                          RFPs, enriches contacts, and executes voice fleet.
+                        </p>
+                      </div>
+                      <span className="mt-3 label-mono text-[9px] text-emerald-700 dark:text-lime font-bold">
+                        Autonomous End-to-End
+                      </span>
                     </label>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full mt-2 border border-ink bg-ink text-paper py-3.5 label-mono font-bold hover:border-violet hover:bg-violet active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Provisioning Workspace…
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 text-lime" /> Create Account & Start Free Trial →
-                      </>
-                    )}
-                  </button>
-
-                  <p className="text-center font-mono text-[11px] text-muted-foreground pt-1">
-                    Already have an account?{" "}
+                  <div className="flex gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setTab("Signin");
-                        setErrorMessage(null);
-                      }}
-                      className="text-violet font-bold hover:underline"
+                      onClick={() => setOnboardStep(2)}
+                      className="border border-ink/30 px-3 py-2.5 label-mono text-xs hover:bg-secondary"
                     >
-                      Sign In
+                      ← Back
                     </button>
-                  </p>
-                </form>
-              )}
-
-              {/* Form 2: Sign In */}
-              {tab === "Signin" && (
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <Field
-                    label="Work Email"
-                    type="email"
-                    placeholder="you@company.com"
-                    value={workEmail}
-                    onChange={setWorkEmail}
-                    icon={Mail}
-                  />
-                  <Field
-                    label="Password"
-                    type="password"
-                    placeholder="••••••••••••"
-                    value={password}
-                    onChange={setPassword}
-                    icon={Lock}
-                  />
-
-                  <div className="flex justify-end">
                     <button
-                      type="button"
-                      onClick={() => {
-                        setTab("Forgot");
-                        setErrorMessage(null);
-                        setSuccessMessage(null);
-                      }}
-                      className="font-mono text-[11px] text-violet hover:underline"
+                      type="submit"
+                      disabled={loading || success}
+                      className="flex-1 inline-flex items-center justify-center gap-2 border border-ink bg-lime px-4 py-3 label-mono text-lime-foreground hover:bg-ink hover:text-paper transition-all font-bold active:scale-[0.98]"
                     >
-                      Forgot password?
+                      {success ? (
+                        <>✓ Launching Workspace…</>
+                      ) : loading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" /> Provisioning 11-Step
+                          Pipeline…
+                        </>
+                      ) : (
+                        <>
+                          Launch Autonomous Workspace <ArrowUpRight className="h-4 w-4" />
+                        </>
+                      )}
                     </button>
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full mt-2 border border-ink bg-ink text-paper py-3.5 label-mono font-bold hover:border-violet hover:bg-violet active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Authenticating…
-                      </>
-                    ) : (
-                      <>
-                        Sign In to Console <ArrowUpRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-
-                  <p className="text-center font-mono text-[11px] text-muted-foreground pt-1">
-                    Don't have an account yet?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTab("Signup");
-                        setErrorMessage(null);
-                      }}
-                      className="text-violet font-bold hover:underline"
-                    >
-                      Start Free 14-Day Trial
-                    </button>
-                  </p>
                 </form>
               )}
-
-              {/* Form 3: Forgot Password */}
-              {tab === "Forgot" && (
-                <form onSubmit={handleResetPassword} className="space-y-4">
-                  <Field
-                    label="Registered Work Email"
-                    type="email"
-                    placeholder="you@company.com"
-                    value={workEmail}
-                    onChange={setWorkEmail}
-                    icon={Mail}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full mt-2 border border-ink bg-ink text-paper py-3.5 label-mono font-bold hover:border-violet hover:bg-violet active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" /> Sending Link…
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-3.5 h-3.5" /> Send Password Reset Email
-                      </>
-                    )}
-                  </button>
-
-                  <p className="text-center font-mono text-[11px] text-muted-foreground pt-1">
-                    Remembered your password?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTab("Signin");
-                        setErrorMessage(null);
-                      }}
-                      className="text-violet font-bold hover:underline"
-                    >
-                      Back to Sign In
-                    </button>
-                  </p>
-                </form>
+            </div>
+          ) : (
+            /* Sign In / API Key Form */
+            <form className="mt-6 space-y-4 fade-in anim-d-400" onSubmit={handleSubmitSignIn}>
+              {tab === "API Key" ? (
+                <Field
+                  label={t("login.api")}
+                  type="password"
+                  placeholder="vx_sk_live_••••••••••••"
+                />
+              ) : (
+                <>
+                  <Field label={t("login.email")} type="email" placeholder="you@yourcompany.com" />
+                  <Field label={t("login.password")} type="password" placeholder="••••••••••••" />
+                </>
               )}
-            </>
+
+              <button
+                type="submit"
+                disabled={loading || success}
+                className={`group inline-flex w-full items-center justify-center gap-3 border border-ink px-6 py-3.5 label-mono transition-all active:scale-[0.98] ${
+                  success
+                    ? "bg-lime text-lime-foreground border-lime"
+                    : "bg-ink text-paper hover:border-violet hover:bg-violet"
+                } disabled:opacity-80`}
+              >
+                {success ? (
+                  <>✓ Redirecting to dashboard…</>
+                ) : loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Authenticating…
+                  </>
+                ) : (
+                  <>
+                    {t("login.cta.signin")}
+                    <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </>
+                )}
+              </button>
+            </form>
           )}
 
-          {/* 1-Click Fast Sandbox Personas */}
-          <div className="mt-8 pt-6 border-t border-ink/15">
-            <span className="label-mono text-muted-foreground text-[10px] block mb-2.5">
-              // Instant Sandbox Persona Access (Local Development Testing)
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {personas.map((p) => (
+          {/* Demo personas */}
+          <div className="mt-10 fade-in anim-d-500">
+            <span className="label-mono text-muted-foreground text-xs">{t("login.demo")}</span>
+            <div className="mt-3 grid gap-px border border-ink bg-ink/15 sm:grid-cols-2">
+              {personas.map(({ key, desc }) => (
                 <button
-                  key={p.key}
+                  key={key}
                   type="button"
-                  onClick={() => handlePersonaLogin(p)}
-                  className="border border-ink/15 bg-paper p-3 text-left hover:border-violet hover:bg-secondary/40 transition-all group"
+                  onClick={() => {
+                    setLoading(true);
+                    const isConfirmed = localStorage.getItem("vyaperi_profile_confirmed") === "true";
+                    const target = isConfirmed ? "/dashboard" : "/onboarding";
+                    setTimeout(() => navigate({ to: target }), 600);
+                  }}
+                  className="group bg-paper px-3.5 py-3 text-left transition-all hover:bg-violet hover:text-violet-foreground active:scale-[0.98]"
                 >
-                  <span className="font-display text-xs font-bold uppercase text-ink group-hover:text-violet transition-colors block">
-                    {p.key}
-                  </span>
-                  <span className="font-mono text-[10px] text-muted-foreground block truncate">
-                    {p.company} · {p.desc}
+                  <span className="block font-display text-xs font-bold uppercase">{key}</span>
+                  <span className="mt-0.5 block font-mono text-[10px] opacity-70">{desc}</span>
+                  <span className="mt-1.5 block label-mono text-[9px] opacity-0 group-hover:opacity-60 transition-opacity">
+                    → Enter as {key}
                   </span>
                 </button>
               ))}
@@ -934,24 +674,20 @@ function Field({
   placeholder,
   value,
   onChange,
-  icon: Icon,
 }: {
   label: string;
   type: string;
   placeholder: string;
   value?: string;
   onChange?: (v: string) => void;
-  icon?: React.ElementType;
 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <label className="block space-y-1">
+    <label className="block">
       <span
-        className={`label-mono text-xs transition-colors flex items-center gap-1 ${
-          focused ? "text-violet font-bold" : "text-muted-foreground"
-        }`}
+        className={`label-mono text-xs transition-colors ${focused ? "text-violet" : "text-muted-foreground"}`}
       >
-        {Icon && <Icon className="w-3 h-3" />} {label}
+        {label}
       </span>
       <input
         type={type}
@@ -960,7 +696,7 @@ function Field({
         onChange={(e) => onChange?.(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        className="w-full border border-ink/30 bg-paper px-3.5 py-2.5 font-mono text-xs text-ink outline-none placeholder:text-muted-foreground/50 focus:border-violet focus:ring-1 focus:ring-violet transition-all"
+        className="mt-1.5 w-full border border-ink bg-transparent px-3.5 py-2.5 font-mono text-xs text-ink outline-none placeholder:text-muted-foreground/60 focus:border-violet focus:ring-2 focus:ring-violet/20 transition-all"
       />
     </label>
   );

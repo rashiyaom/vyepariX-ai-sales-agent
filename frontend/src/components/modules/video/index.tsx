@@ -437,7 +437,7 @@ export function VideoMeetingModule({
               {meetingEndNotice && (
                 <div className="border border-lime/40 bg-lime/10 text-lime-700 dark:text-lime p-4 font-mono text-xs flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4 shrink-0 text-lime" />
+                    <Check className="w-4 h-4 shrink-0 text-lime-700 dark:text-lime" />
                     <span>{meetingEndNotice}</span>
                   </div>
                   <button
@@ -554,7 +554,7 @@ export function VideoMeetingModule({
                               <div
                                 className={`w-4 h-4 border flex items-center justify-center ${
                                   isSelected
-                                    ? "border-violet bg-violet text-paper"
+                                    ? "border-violet bg-violet text-violet-foreground"
                                     : "border-ink/30 bg-paper"
                                 }`}
                               >
@@ -591,7 +591,7 @@ export function VideoMeetingModule({
                     type="button"
                     onClick={handleStartMeeting}
                     disabled={!selectedReportId || startingMeeting || completedReports.length === 0}
-                    className="border-2 border-violet bg-violet text-paper hover:bg-violet/90 px-6 py-3 font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
+                    className="border-2 border-violet bg-violet text-violet-foreground hover:bg-violet/90 px-6 py-3 font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
                   >
                     {startingMeeting ? (
                       <>
@@ -639,7 +639,7 @@ export function VideoMeetingModule({
                   onClick={() => setStatusFilter(st)}
                   className={`px-2.5 py-1 text-[10px] font-bold uppercase border transition-all ${
                     statusFilter === st
-                      ? "border-violet bg-violet text-paper"
+                      ? "border-violet bg-violet text-violet-foreground"
                       : "border-ink/20 bg-paper text-muted-foreground hover:text-ink"
                   }`}
                 >
@@ -864,7 +864,7 @@ export function VideoMeetingModule({
                       }}
                       className="border border-ink/20 px-2.5 py-1 text-[10px] font-bold flex items-center gap-1 hover:bg-secondary transition-all text-ink"
                     >
-                      {copiedTranscript ? <Check className="w-3 h-3 text-lime" /> : <Copy className="w-3 h-3" />}
+                      {copiedTranscript ? <Check className="w-3 h-3 text-lime-700 dark:text-lime" /> : <Copy className="w-3 h-3" />}
                       {copiedTranscript ? "Copied!" : "Copy Full Transcript"}
                     </button>
                   </div>
@@ -1032,7 +1032,7 @@ export function VideoMeetingModule({
                                   className="flex items-center gap-2 cursor-pointer hover:text-violet transition-colors"
                                 >
                                   {isChecked ? (
-                                    <CheckSquare className="w-4 h-4 text-lime shrink-0" />
+                                    <CheckSquare className="w-4 h-4 text-lime-700 dark:text-lime shrink-0" />
                                   ) : (
                                     <Square className="w-4 h-4 text-muted-foreground shrink-0" />
                                   )}

@@ -16,6 +16,7 @@ import {
   Radio,
   Sparkles,
   Video,
+  Calendar as CalendarIcon,
   BarChart3,
   Settings,
   type LucideIcon,
@@ -74,6 +75,15 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     badge: "Mitra",
     description: "Autonomous AI video avatar sales agent powered by Tavus CVI for high-touch buyer meetings.",
     componentPath: "modules/video",
+  },
+  {
+    id: "calendar",
+    label: "Calendar",
+    icon: CalendarIcon,
+    enabled: true,
+    badge: "Meetings",
+    description: "AI-scheduled meetings, Google Meet rooms, reminder alerts, and call follow-ups.",
+    componentPath: "modules/calendar",
   },
   {
     id: "analytics",

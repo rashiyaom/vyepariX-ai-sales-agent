@@ -371,11 +371,14 @@ export function VoiceFleetModule({
   };
 
   // Load Calls & Stats
+  const userId = user?.id;
+
   const fetchCallsAndStats = async () => {
     try {
       setLoadingCalls(true);
-      const userParam = user?.id ? `&user_id=${user.id}` : "";
-      const statsUserParam = user?.id ? `?user_id=${user.id}` : "";
+      const validUserId = user?.id && user.id !== "undefined" && user.id !== "null" ? user.id : null;
+      const userParam = validUserId ? `&user_id=${encodeURIComponent(validUserId)}` : "";
+      const statsUserParam = validUserId ? `?user_id=${encodeURIComponent(validUserId)}` : "";
       const headers: Record<string, string> = {};
       if (session?.access_token) {
         headers["Authorization"] = `Bearer ${session.access_token}`;
@@ -406,7 +409,7 @@ export function VoiceFleetModule({
       fetchCallsAndStats();
     }, 8000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [userId]);
 
   // Update business name if companyName changes
   useEffect(() => {
@@ -472,7 +475,7 @@ export function VoiceFleetModule({
 
   useEffect(() => {
     fetchSettings();
-  }, [user]);
+  }, [userId]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1079,7 +1082,7 @@ export function VoiceFleetModule({
             onClick={() => setActiveTab("csv")}
             className={`border px-3.5 py-2 label-mono text-xs font-bold flex items-center gap-1.5 transition-all ${
               activeTab === "csv"
-                ? "border-violet bg-violet text-paper"
+                ? "border-violet bg-violet text-violet-foreground"
                 : "border-ink/30 bg-paper text-ink hover:border-violet"
             }`}
           >
@@ -1089,7 +1092,7 @@ export function VoiceFleetModule({
             onClick={() => setActiveTab("live")}
             className={`border px-3.5 py-2 label-mono text-xs font-bold flex items-center gap-1.5 transition-all ${
               activeTab === "live"
-                ? "border-lime bg-lime text-ink"
+                ? "border-lime bg-lime text-lime-foreground font-black"
                 : "border-ink/30 bg-paper text-ink hover:border-lime"
             }`}
           >
@@ -1103,7 +1106,7 @@ export function VoiceFleetModule({
                 : "border-ink/30 bg-paper text-ink hover:bg-secondary"
             }`}
           >
-            <PhoneIncoming className="w-3.5 h-3.5 text-lime" /> Inbound Sim
+            <PhoneIncoming className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Inbound Sim
           </button>
           <button
             onClick={() => setActiveTab("settings")}
@@ -1146,7 +1149,7 @@ export function VoiceFleetModule({
 
         <div className="border border-ink/20 bg-paper p-4 space-y-1">
           <span className="label-mono text-muted-foreground text-[9px] block flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-lime" /> Completed Calls
+            <CheckCircle2 className="w-3 h-3 text-lime-700 dark:text-lime" /> Completed Calls
           </span>
           <span className="font-display text-xl font-black text-ink">{stats.completed_calls}</span>
           <span className="label-mono text-[9px] text-muted-foreground block">With timely transcripts</span>
@@ -1208,7 +1211,7 @@ export function VoiceFleetModule({
               : "border-transparent text-muted-foreground hover:text-ink"
           }`}
         >
-          <PhoneCall className="w-3.5 h-3.5 text-lime" /> Single Outbound Call
+          <PhoneCall className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Single Outbound Call
         </button>
 
         <button
@@ -1219,7 +1222,7 @@ export function VoiceFleetModule({
               : "border-transparent text-muted-foreground hover:text-ink"
           }`}
         >
-          <PhoneIncoming className="w-3.5 h-3.5 text-lime" /> Inbound Voice Receptionist
+          <PhoneIncoming className="w-3.5 h-3.5 text-lime-700 dark:text-lime" /> Inbound Voice Receptionist
         </button>
 
         <button
@@ -1277,7 +1280,7 @@ export function VoiceFleetModule({
                     key={st}
                     onClick={() => setStatusFilter(st)}
                     className={`px-2.5 py-1 text-[10px] uppercase font-bold transition-all ${
-                      statusFilter === st ? "bg-violet text-paper" : "text-muted-foreground hover:text-ink"
+                      statusFilter === st ? "bg-violet text-violet-foreground" : "text-muted-foreground hover:text-ink"
                     }`}
                   >
                     {st === "hot" ? "🔥 Hot Leads" : st}
@@ -1309,13 +1312,13 @@ export function VoiceFleetModule({
                 <div className="flex justify-center gap-2 pt-2 flex-wrap">
                   <button
                     onClick={() => setActiveTab("csv")}
-                    className="border border-violet bg-violet text-paper px-3 py-1.5 label-mono text-xs font-bold hover:bg-violet/90"
+                    className="border border-violet bg-violet text-violet-foreground px-3 py-1.5 label-mono text-xs font-bold hover:bg-violet/90"
                   >
                     Upload CSV
                   </button>
                   <button
                     onClick={() => setActiveTab("live")}
-                    className="border border-lime bg-lime text-ink px-3 py-1.5 label-mono text-xs font-bold hover:bg-lime/90"
+                    className="border border-lime bg-lime text-lime-foreground px-3 py-1.5 label-mono text-xs font-black hover:bg-lime/90"
                   >
                     Test Live Call
                   </button>
@@ -1560,7 +1563,7 @@ export function VoiceFleetModule({
                   <button
                     onClick={handleLaunchBatchCampaign}
                     disabled={isLaunchingBatch || parsedContacts.filter((c) => c.selected).length === 0}
-                    className="border border-lime bg-lime text-ink px-4 py-1.5 label-mono text-xs font-bold hover:bg-lime/90 disabled:opacity-50 flex items-center gap-1.5"
+                    className="border border-lime bg-lime text-lime-foreground px-4 py-1.5 label-mono text-xs font-black hover:bg-lime/90 disabled:opacity-50 flex items-center gap-1.5"
                   >
                     {isLaunchingBatch ? (
                       <>
@@ -1671,7 +1674,7 @@ export function VoiceFleetModule({
                   }}
                   className={`py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                     liveCallMode === "real"
-                      ? "bg-lime text-ink border border-lime shadow-sm"
+                      ? "bg-lime text-lime-foreground border border-lime shadow-sm font-black"
                       : "text-muted-foreground hover:text-ink"
                   }`}
                 >
@@ -1686,7 +1689,7 @@ export function VoiceFleetModule({
                   }}
                   className={`py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                     liveCallMode === "demo"
-                      ? "bg-violet text-paper border border-violet shadow-sm"
+                      ? "bg-violet text-violet-foreground border border-violet shadow-sm"
                       : "text-muted-foreground hover:text-ink"
                   }`}
                 >
@@ -1824,7 +1827,7 @@ export function VoiceFleetModule({
                         onClick={() => handleSetCountryCode(p.code)}
                         className={`px-2 py-0.5 text-[10px] font-mono border transition-all flex items-center gap-1 cursor-pointer ${
                           isSelected
-                            ? "border-violet bg-violet text-paper font-bold shadow-xs"
+                            ? "border-violet bg-violet text-violet-foreground font-bold shadow-xs"
                             : "border-ink/20 bg-paper hover:bg-ink/5 text-ink"
                         }`}
                       >
@@ -1924,10 +1927,10 @@ export function VoiceFleetModule({
                 onClick={liveCallActive ? handleStopLiveCallMonitoring : handleStartLiveCall}
                 className={`w-full py-3 label-mono text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 ${
                   liveCallActive
-                    ? "border border-danger bg-danger text-paper hover:bg-danger/90 cursor-pointer shadow-lg animate-pulse"
+                    ? "border border-danger bg-danger text-destructive-foreground hover:bg-danger/90 cursor-pointer shadow-lg animate-pulse"
                     : liveCallMode === "real"
-                    ? "border border-lime bg-lime text-ink hover:bg-lime/90 shadow-sm cursor-pointer"
-                    : "border border-violet bg-violet text-paper hover:bg-violet/90 shadow-sm cursor-pointer"
+                    ? "border border-lime bg-lime text-lime-foreground hover:bg-lime/90 shadow-sm cursor-pointer font-black"
+                    : "border border-violet bg-violet text-violet-foreground hover:bg-violet/90 shadow-sm cursor-pointer"
                 }`}
               >
                 {liveCallActive ? (
@@ -1982,8 +1985,8 @@ export function VoiceFleetModule({
               </div>
             )}
 
-            {/* Audio Waveform Console */}
-            <div className="border border-ink/20 bg-ink text-paper p-5 space-y-4">
+            {/* Audio Waveform Console - Hardware Terminal Style (always dark for glowing phosphor aesthetic) */}
+            <div className="border border-neutral-800 bg-neutral-950 text-neutral-100 dark:bg-black p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Bot className="w-4 h-4 text-lime" />
@@ -1992,10 +1995,10 @@ export function VoiceFleetModule({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="label-mono text-[9px] text-paper/60 uppercase">
+                  <span className="label-mono text-[9px] text-neutral-400 uppercase">
                     {liveCallMode === "real" ? "REAL CALL" : "DEMO"}
                   </span>
-                  <Volume2 className="w-4 h-4 text-muted-foreground" />
+                  <Volume2 className="w-4 h-4 text-neutral-400" />
                 </div>
               </div>
 
@@ -2182,7 +2185,7 @@ export function VoiceFleetModule({
                   </>
                 ) : (
                   <>
-                    <PhoneIncoming className="w-4 h-4 text-lime" /> Connect Inbound Call & Ingest
+                    <PhoneIncoming className="w-4 h-4 text-paper" /> Connect Inbound Call & Ingest
                   </>
                 )}
               </button>
@@ -2558,9 +2561,9 @@ export function VoiceFleetModule({
                         setCopiedTranscript(true);
                         setTimeout(() => setCopiedTranscript(false), 2000);
                       }}
-                      className="border border-ink/20 px-2.5 py-1 text-[10px] font-bold flex items-center gap-1 hover:bg-secondary transition-all"
+                      className="border border-ink/20 px-2.5 py-1 text-[10px] font-bold flex items-center gap-1 hover:bg-secondary transition-all text-ink"
                     >
-                      {copiedTranscript ? <Check className="w-3 h-3 text-lime" /> : <Copy className="w-3 h-3" />}
+                      {copiedTranscript ? <Check className="w-3 h-3 text-lime-700 dark:text-lime" /> : <Copy className="w-3 h-3" />}
                       {copiedTranscript ? "Copied!" : "Copy Full Transcript"}
                     </button>
                   </div>
@@ -2717,7 +2720,7 @@ export function VoiceFleetModule({
                                   className="flex items-center gap-2 cursor-pointer hover:text-violet"
                                 >
                                   {isChecked ? (
-                                    <CheckSquare className="w-4 h-4 text-lime shrink-0" />
+                                    <CheckSquare className="w-4 h-4 text-lime-700 dark:text-lime shrink-0" />
                                   ) : (
                                     <Square className="w-4 h-4 text-muted-foreground shrink-0" />
                                   )}
@@ -2747,7 +2750,7 @@ export function VoiceFleetModule({
                       <button
                         onClick={() => handleReanalyzeCall(selectedCall.id)}
                         disabled={reanalyzing}
-                        className="border border-violet bg-violet text-paper px-4 py-2 label-mono text-xs font-bold hover:bg-violet/90"
+                        className="border border-violet bg-violet text-violet-foreground px-4 py-2 label-mono text-xs font-bold hover:bg-violet/90"
                       >
                         {reanalyzing ? "Analyzing with Groq..." : "Run Groq Post-Call Audit Now"}
                       </button>

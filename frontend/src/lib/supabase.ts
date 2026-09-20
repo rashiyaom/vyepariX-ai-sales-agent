@@ -1,20 +1,22 @@
 import { createClient } from "@supabase/supabase-js";
 
+function cleanSupabaseUrl(url: string): string {
+  let cleaned = (url || "").trim().replace(/\/+$/, "");
+  if (cleaned.endsWith("/rest/v1")) {
+    cleaned = cleaned.slice(0, -"/rest/v1".length).replace(/\/+$/, "");
+  }
+  return cleaned;
+}
+
 // Dedicated Supabase Project URL & Publishable Key
 const envUrl = (import.meta.env["VITE_SUPABASE_URL"] as string) || "";
-export const SUPABASE_URL: string =
-  envUrl && !envUrl.includes("your-project")
-    ? envUrl
-    : "https://adhgwqlulqeqpwycvmni.supabase.co";
+export const SUPABASE_URL: string = cleanSupabaseUrl(envUrl);
 
 const envKey =
   (import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] as string) ||
   (import.meta.env["VITE_SUPABASE_ANON_KEY"] as string) ||
   "";
-export const SUPABASE_PUBLISHABLE_KEY: string =
-  envKey && !envKey.includes("xxxxxxxx")
-    ? envKey
-    : "sb_publishable_xLcJx_03aKm_jLKJKtzcBA_9R5lF0Hx";
+export const SUPABASE_PUBLISHABLE_KEY: string = envKey.trim();
 
 export const isSupabaseConfigured =
   Boolean(SUPABASE_URL) &&

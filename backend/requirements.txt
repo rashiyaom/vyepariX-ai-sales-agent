@@ -24,3 +24,6 @@ pypdf>=5.0.0
 pdfplumber>=0.11.0
 # Direct PostgreSQL connection & migration execution (setup_dev_supabase.py)
 psycopg2-binary>=2.9.9
+# MongoDB persistence
+motor>=3.7.0
+pymongo>=4.9.0

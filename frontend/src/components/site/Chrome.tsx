@@ -61,9 +61,9 @@ export function SiteHeader() {
     { label: t("site.sandbox"), href: "/#sandbox", badge: "Live" },
     { label: t("site.pipeline"), href: "/#pipeline", badge: "6 Modules" },
     { label: t("site.voice"), href: "/#voice", badge: "Real Voice" },
+    { label: "Pricing", href: "/pricing", badge: "Save 25%" },
     { label: t("site.capabs"), href: "/#capabilities" },
-    { label: "Intelligence Suite", href: "/scraper", badge: "New" },
-    { label: "Sign In", href: "/login", badge: "Trial" },
+    { label: t("site.console"), href: "/dashboard", badge: "Console" },
   ];
 
   const mobileMenuItems: MenuItem[] = NAV.map((item) => ({
@@ -147,19 +147,18 @@ export function SiteFooter() {
             [t("site.sandbox"), "/#sandbox"],
             [t("site.pipeline"), "/#pipeline"],
             ["Voice Agent Fleet", "/#voice"],
+            ["Pricing & ROI", "/pricing"],
             [t("site.capabs"), "/#capabilities"],
-            ["Intelligence Suite", "/scraper"],
-            ["Sign In / Free Trial", "/login"],
           ]}
         />
         <FooterCol
           title="Platform"
           links={[
-            ["Live Voice Demo", "/#voice"],
-            ["Pipeline Simulation", "/#pipeline"],
-            ["Autonomous Mesh", "/#sandbox"],
-            ["Intelligence Suite", "/scraper"],
-            ["Sign In", "/login"],
+            ["Sales Console", "/dashboard"],
+            ["Lead Discovery Radar", "/dashboard/inspector"],
+            ["Live Call Studio", "/dashboard/attack-demo"],
+            ["Pricing Architecture", "/pricing"],
+            ["Sign In / Free Trial", "/login"],
           ]}
         />
         <div>
@@ -178,7 +177,7 @@ export function SiteFooter() {
               </span>
             ))}
           </div>
-          <div className="mt-6 border border-ink/20 bg-lime px-3 py-2 label-mono text-lime-foreground font-bold">
+          <div className="mt-6 border border-ink/20 bg-lime px-3 py-2 label-mono text-black font-extrabold">
             ✓ Autonomous Mesh Operational
           </div>
         </div>

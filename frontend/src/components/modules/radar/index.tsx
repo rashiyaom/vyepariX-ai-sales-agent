@@ -210,7 +210,7 @@ export function LeadRadarModule({
               onClick={() => setFilterIntent(lvl)}
               className={`label-mono px-2.5 py-1 text-[10px] border transition-all ${
                 filterIntent === lvl
-                  ? "border-violet bg-violet text-paper font-bold"
+                  ? "border-violet bg-violet text-violet-foreground font-bold"
                   : "border-ink/20 bg-secondary text-muted-foreground hover:border-ink"
               }`}
             >
@@ -296,7 +296,7 @@ export function LeadRadarModule({
                   disabled={isCalling}
                   className={`border px-3.5 py-2 label-mono font-bold flex items-center gap-2 transition-all ${
                     lead.status === "in_call"
-                      ? "border-lime bg-lime text-ink animate-pulse"
+                      ? "border-lime bg-lime text-lime-foreground font-black animate-pulse"
                       : "border-ink bg-ink text-paper hover:bg-violet hover:border-violet"
                   }`}
                 >
@@ -326,7 +326,7 @@ export function LeadRadarModule({
           </div>
           <button
             onClick={() => onLaunchVoiceAgent?.(leads[0]!)}
-            className="border border-violet bg-violet text-paper px-4 py-2 label-mono font-bold hover:bg-violet/90 transition-all flex items-center gap-2"
+            className="border border-violet bg-violet text-violet-foreground px-4 py-2 label-mono font-bold hover:bg-violet/90 transition-all flex items-center gap-2"
           >
             <Zap className="w-3.5 h-3.5" /> Launch Voice Fleet Batch
           </button>
