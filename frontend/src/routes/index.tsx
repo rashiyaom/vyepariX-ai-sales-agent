@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CinematicFrameHero } from "@/components/site/CinematicFrameHero";
-import { DiceScrollSection } from "@/components/site/DiceScrollSection";
 import { MainPlatformLanding } from "@/components/site/MainPlatformLanding";
 
 export const Route = createFileRoute("/")({
@@ -23,10 +22,7 @@ function Index() {
       {/* 🎬 1. Pure Fullscreen Video Hero with Instant Frame-Synchronized Light/Dark Toggle */}
       <CinematicFrameHero />
 
-      {/* 🎲 2. Interactive 3D Dice Scroll Screen */}
-      <DiceScrollSection />
-
-      {/* 🚀 3. Previous Original Hero Section & Complete Platform Overview */}
+      {/* 🚀 2. Previous Original Hero Section & Complete Platform Overview */}
       <MainPlatformLanding />
     </div>
   );

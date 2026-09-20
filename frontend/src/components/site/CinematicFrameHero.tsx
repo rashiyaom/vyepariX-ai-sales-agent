@@ -269,11 +269,11 @@ export function CinematicFrameHero() {
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
         <button
           onClick={() => {
-            const el = document.getElementById("dice-scroll-screen");
+            const el = document.getElementById("platform-content");
             if (el) el.scrollIntoView({ behavior: "smooth" });
           }}
           className="flex flex-col items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer text-white/80"
-          aria-label="Scroll to dice section"
+          aria-label="Scroll to platform overview"
         >
           <span className="text-[9px] font-mono tracking-widest uppercase">Scroll</span>
           <div className="h-6 w-3.5 rounded-full border border-white/40 flex items-start justify-center p-0.5">
