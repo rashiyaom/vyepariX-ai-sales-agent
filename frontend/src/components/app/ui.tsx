@@ -264,9 +264,9 @@ export function Terminal({
   }, [lines, typewriter]);
 
   return (
-    <div className="border border-neutral-800 bg-neutral-950 p-4 text-neutral-100 dark:bg-black fade-in-up">
+    <div className="border border-ink bg-ink p-4 text-paper fade-in-up">
       <div className="flex items-center justify-between">
-        <div className="label-mono text-neutral-400">vyaperi-x@sales-engine:~ {title}</div>
+        <div className="label-mono text-paper/50">vyaperi-x@sales-engine:~ {title}</div>
         <LiveDot label="running" />
       </div>
       <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed">

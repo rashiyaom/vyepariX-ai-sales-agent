@@ -631,7 +631,7 @@ export function HeroVoicePreview() {
               className={`px-3 py-1.5 border text-xs font-mono flex items-center gap-1.5 rounded transition-all active:scale-95 ${
                 isPlaying
                   ? (agentColor[agent.id] ?? "bg-violet text-white border-violet")
-                  : "bg-paper border-border hover:border-violet text-ink dark:text-neutral-200 dark:border-neutral-700"
+                  : "bg-paper border-border hover:border-violet text-ink"
               }`}
             >
               {isPlaying ? (
@@ -782,7 +782,7 @@ export function VoiceAgentSynthesizerWidget({
                 className={`flex-1 py-1.5 px-1.5 border text-xs font-mono transition-all text-center rounded ${
                   selectedLang === code
                     ? "bg-violet text-white border-violet font-bold shadow-sm"
-                    : "bg-card border-border hover:bg-secondary text-ink dark:text-neutral-200 dark:border-neutral-700"
+                    : "bg-card border-border hover:bg-secondary text-ink"
                 }`}
               >
                 {label}
@@ -811,7 +811,7 @@ export function VoiceAgentSynthesizerWidget({
                 className={`flex-1 py-1.5 px-2 border text-xs font-mono transition-all text-center rounded ${
                   selectedGender === g
                     ? "bg-lime text-lime-foreground border-lime font-bold shadow-sm"
-                    : "bg-card border-border hover:bg-secondary text-ink dark:text-neutral-200 dark:border-neutral-700"
+                    : "bg-card border-border hover:bg-secondary text-ink"
                 }`}
               >
                 {label}
@@ -839,7 +839,7 @@ export function VoiceAgentSynthesizerWidget({
             >
               <div className="font-display text-xs font-bold text-ink group-hover:text-violet flex items-center justify-between">
                 <span>{preset.label}</span>
-                <Play className="h-3 w-3 opacity-60 group-hover:opacity-100 text-lime-700 dark:text-lime" />
+                <Play className="h-3 w-3 opacity-60 group-hover:opacity-100 text-lime" />
               </div>
               <div className="font-mono text-[11px] text-muted-foreground line-clamp-2 mt-1 leading-relaxed">
                 "{preset.text}"
@@ -872,7 +872,7 @@ export function VoiceAgentSynthesizerWidget({
           />
           <button
             onClick={() => handleSpeak()}
-            className="px-5 border border-neutral-800 bg-neutral-950 text-neutral-100 font-mono text-xs font-bold rounded hover:bg-violet hover:border-violet transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shrink-0 shadow"
+            className="px-5 border border-ink bg-ink text-paper font-mono text-xs font-bold rounded hover:bg-violet hover:border-violet transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shrink-0 shadow"
           >
             <Volume2 className="h-4 w-4 text-lime" />
             <span>Speak</span>

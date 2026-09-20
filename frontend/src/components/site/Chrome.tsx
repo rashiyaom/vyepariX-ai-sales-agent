@@ -28,7 +28,7 @@ export function Logo({ className = "" }: { className?: string }) {
         </svg>
       </span>
       <span className="flex items-baseline gap-1 sm:gap-1.5 whitespace-nowrap">
-        <span className="font-display text-sm sm:text-lg font-extrabold tracking-tight text-ink">
+        <span className="font-display text-sm sm:text-lg font-extrabold tracking-tight">
           VYAPERI X
         </span>
         <span className="hidden font-display text-xs sm:text-sm font-bold text-violet md:inline">
@@ -61,9 +61,9 @@ export function SiteHeader() {
     { label: t("site.sandbox"), href: "/#sandbox", badge: "Live" },
     { label: t("site.pipeline"), href: "/#pipeline", badge: "6 Modules" },
     { label: t("site.voice"), href: "/#voice", badge: "Real Voice" },
+    { label: "Pricing", href: "/pricing", badge: "Save 25%" },
     { label: t("site.capabs"), href: "/#capabilities" },
-    { label: "Intelligence Suite", href: "/scraper", badge: "New" },
-    { label: "Sign In", href: "/login", badge: "Trial" },
+    { label: t("site.console"), href: "/dashboard", badge: "Console" },
   ];
 
   const mobileMenuItems: MenuItem[] = NAV.map((item) => ({
@@ -131,7 +131,7 @@ export function SiteHeader() {
 export function SiteFooter() {
   const { t } = useLang();
   return (
-    <footer className="border-t border-ink/20 bg-paper text-ink">
+    <footer className="border-t border-ink/20 bg-paper">
       <div className="mx-auto grid max-w-[1400px] gap-10 px-4 py-14 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
         <div>
           <Logo />
@@ -147,24 +147,23 @@ export function SiteFooter() {
             [t("site.sandbox"), "/#sandbox"],
             [t("site.pipeline"), "/#pipeline"],
             ["Voice Agent Fleet", "/#voice"],
+            ["Pricing & ROI", "/pricing"],
             [t("site.capabs"), "/#capabilities"],
-            ["Intelligence Suite", "/scraper"],
-            ["Sign In / Free Trial", "/login"],
           ]}
         />
         <FooterCol
           title="Platform"
           links={[
-            ["Live Voice Demo", "/#voice"],
-            ["Pipeline Simulation", "/#pipeline"],
-            ["Autonomous Mesh", "/#sandbox"],
-            ["Intelligence Suite", "/scraper"],
-            ["Sign In", "/login"],
+            ["Sales Console", "/dashboard"],
+            ["Lead Discovery Radar", "/dashboard/inspector"],
+            ["Live Call Studio", "/dashboard/attack-demo"],
+            ["Pricing Architecture", "/pricing"],
+            ["Sign In / Free Trial", "/login"],
           ]}
         />
         <div>
           <h3 className="label-mono text-muted-foreground">Voice Regions Active</h3>
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs text-ink">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs">
             {[
               "IN (Mumbai/Surat)",
               "AE (Dubai)",
@@ -172,13 +171,13 @@ export function SiteFooter() {
               "SG (Singapore)",
               "CO (Bogotá)",
             ].map((n, i) => (
-              <span key={n} className="flex items-center gap-3 text-ink dark:text-neutral-200">
+              <span key={n} className="flex items-center gap-3">
                 {i > 0 && <span className="text-violet">+</span>}
                 {n}
               </span>
             ))}
           </div>
-          <div className="mt-6 border border-ink/20 bg-lime px-3 py-2 label-mono text-lime-foreground font-bold">
+          <div className="mt-6 border border-ink/20 bg-lime px-3 py-2 label-mono text-black font-extrabold">
             ✓ Autonomous Mesh Operational
           </div>
         </div>
@@ -237,7 +236,7 @@ export function SectionHead({
   return (
     <div className="flex flex-wrap items-baseline gap-4 border-b border-ink/20 pb-4 fade-in-up">
       <span className="label-mono text-violet">/{index}</span>
-      <h2 className="text-xl font-extrabold sm:text-2xl text-ink">{title}</h2>
+      <h2 className="text-xl font-extrabold sm:text-2xl">{title}</h2>
       {children}
     </div>
   );

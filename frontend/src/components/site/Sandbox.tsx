@@ -414,14 +414,10 @@ export function Sandbox() {
             >
               <span>{s.label}</span>
               <span
-                className={`text-[9px] px-1.5 py-0.2 border uppercase font-mono ${
-                  scenario.id === s.id
-                    ? s.mode === "calling_only"
-                      ? "bg-violet/30 text-paper border-violet/60"
-                      : "bg-lime/20 text-lime border-lime/50"
-                    : s.mode === "calling_only"
-                      ? "bg-violet/10 text-violet border-violet/30"
-                      : "bg-emerald-600/10 text-emerald-700 dark:text-lime border-emerald-500/30"
+                className={`text-[9px] px-1 py-0.2 border uppercase ${
+                  s.mode === "calling_only"
+                    ? "bg-violet/20 text-violet border-violet/40"
+                    : "bg-emerald-500/20 text-emerald-700 dark:text-lime border-emerald-500/40"
                 }`}
               >
                 {s.mode === "calling_only" ? "Calling Only" : "Leads + Calling"}
@@ -524,9 +520,9 @@ export function Sandbox() {
         })}
       </div>
 
-      {/* Live Stage Execution Terminal Logs (Permanent Dark Console for Phosphor Contrast) */}
-      <div className="p-6 border border-neutral-800 bg-neutral-950 text-neutral-100 dark:bg-black space-y-4">
-        <div className="flex items-center justify-between font-mono text-xs text-neutral-400 border-b border-white/10 pb-2">
+      {/* Live Stage Execution Terminal Logs */}
+      <div className="p-6 bg-ink text-paper space-y-4">
+        <div className="flex items-center justify-between font-mono text-xs text-paper/60 border-b border-paper/10 pb-2">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-lime animate-ping" />
             <span>Autonomous Flow Engine Telemetry</span>
@@ -542,11 +538,11 @@ export function Sandbox() {
 
         <div className="min-h-[170px] max-h-[260px] overflow-y-auto space-y-2.5 font-mono text-[11px]">
           {step < 0 && (
-            <div className="py-12 text-center text-neutral-400 space-y-1">
+            <div className="py-12 text-center text-paper/40 space-y-1">
               <div>
                 // Click "Run 11-Step Simulation" above to watch VYAPERI X process this workflow
               </div>
-              <div className="text-[10px] text-neutral-500">
+              <div className="text-[10px] text-paper/30">
                 From Onboarding & LLM Understanding through Discovery, Enrichment, Voice Call, and
                 CRM Sync
               </div>
@@ -562,7 +558,7 @@ export function Sandbox() {
                   </span>
                   <span>[{STAGES[stageIdx]![1]}]:</span>
                 </div>
-                <div className="pl-4 space-y-0.5 text-neutral-300">
+                <div className="pl-4 space-y-0.5 text-paper/85">
                   {entries.map((logLine, logIdx) => (
                     <div key={logIdx} className="flex items-center gap-2">
                       <span className="text-lime text-[10px]">✓</span>

@@ -929,7 +929,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       pushLead: () =>
         setLeads((prev) => {
           const l = makeLead(prev.length + Math.floor(rnd() * 11));
-          l.id = `LD-${4300 + prev.length}`;
+          l.id = `LD-${4300 + prev.length}-${Date.now().toString().slice(-4)}`;
           l.discovered = new Date().toISOString().slice(0, 16).replace("T", " ");
           return [l, ...prev].slice(0, 80);
         }),
