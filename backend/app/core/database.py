@@ -61,6 +61,9 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_now_iso = _now
+
+
 def _clean_user_id(user_id: Optional[str]) -> Optional[str]:
     """Sanitize and validate user_id string to ensure valid UUID format or None."""
     if not user_id:
@@ -75,6 +78,11 @@ def _clean_user_id(user_id: Optional[str]) -> Optional[str]:
         return None
 
 
+def _ensure_uuid(val: Optional[str]) -> Optional[str]:
+    """Ensures string is a valid UUID string. Returns None if invalid or non-UUID."""
+    return _clean_user_id(val)
+
+
 async def init_db():
     """Verify Supabase database connectivity on application startup."""
     try:
@@ -82,6 +90,13 @@ async def init_db():
         logger.info(f"Supabase Client successfully initialized for: {SUPABASE_URL}")
     except Exception as e:
         logger.error(f"Failed to connect to Supabase: {e}")
+
+
+# In-memory fast stores for immediate responsiveness & offline fallback
+_in_memory_reports: Dict[str, dict] = {}
+_in_memory_calls: Dict[str, dict] = {}
+_in_memory_voice_campaigns: Dict[str, dict] = {}
+_in_memory_video_calls: Dict[str, dict] = {}
 
 
 # ─────────────────────────── Profiles Operations ─────────────────────────
@@ -731,11 +746,7 @@ async def get_video_call_by_tavus_id(tavus_conversation_id: str) -> Optional[dic
     return None
 
 
-
 # ─────────────────────────── Video Calls (Tavus Mitra) ──────────────────
-
-_in_memory_video_calls: Dict[str, dict] = {}
-
 
 async def create_video_call(call_data: dict, user_id: Optional[str] = None) -> str:
     """Insert a new video call record in Supabase."""
@@ -897,3 +908,165 @@ async def get_video_call_by_tavus_id(tavus_conversation_id: str) -> Optional[dic
         if c.get("tavus_conversation_id") == tavus_conversation_id:
             return c
     return None
+
+
+# ─────────────────────────── Calendar Events & Scheduled Meetings ────────
+
+_in_memory_calendar_events: Dict[str, dict] = {}
+
+
+async def create_calendar_event(event_data: dict, user_id: Optional[str] = None) -> str:
+    """
+    Create a new scheduled meeting or call calendar event.
+    Stores in Supabase 'calendar_events' table with in-memory fallback.
+    """
+    event_id = event_data.get("id") or str(uuid.uuid4())
+    clean_user_id = _ensure_uuid(user_id or event_data.get("user_id"))
+    now = _now_iso()
+
+    row = {
+        "id": event_id,
+        "user_id": clean_user_id,
+        "call_id": event_data.get("call_id"),
+        "report_id": event_data.get("report_id"),
+        "customer_name": event_data.get("customer_name") or "Prospective Buyer",
+        "customer_phone": event_data.get("customer_phone"),
+        "customer_email": event_data.get("customer_email"),
+        "company_name": event_data.get("company_name"),
+        "title": event_data.get("title") or f"Sales Meeting with {event_data.get('customer_name', 'Lead')}",
+        "description": event_data.get("description") or "",
+        "start_time": event_data.get("start_time") or now,
+        "end_time": event_data.get("end_time") or now,
+        "meeting_type": event_data.get("meeting_type") or "google_meet",
+        "meet_url": event_data.get("meet_url"),
+        "status": event_data.get("status") or "scheduled",
+        "reminder_minutes": event_data.get("reminder_minutes") or 15,
+        "remind_via": event_data.get("remind_via") or "popup",
+        "google_event_id": event_data.get("google_event_id"),
+        "synced_to_google": bool(event_data.get("synced_to_google", False)),
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    _in_memory_calendar_events[event_id] = dict(row)
+
+    client = get_supabase()
+    try:
+        await asyncio.to_thread(client.table("calendar_events").insert(row).execute)
+    except Exception as e:
+        logger.warning(f"Failed to insert calendar event to Supabase: {e}")
+        # If foreign key or table issue, retry with sanitized row
+        if "user_id" in row and clean_user_id is None:
+            safe_row = {k: v for k, v in row.items() if k != "user_id"}
+            try:
+                await asyncio.to_thread(client.table("calendar_events").insert(safe_row).execute)
+            except Exception:
+                pass
+
+    return event_id
+
+
+async def get_calendar_event(event_id: str) -> Optional[dict]:
+    """Fetch a single calendar event by UUID."""
+    client = get_supabase()
+    try:
+        res = await asyncio.to_thread(
+            client.table("calendar_events").select("*").eq("id", event_id).maybe_single().execute
+        )
+        if res and res.data:
+            _in_memory_calendar_events[event_id] = res.data
+            return res.data
+    except Exception as e:
+        logger.warning(f"Error fetching calendar event '{event_id}' from Supabase: {e}")
+
+    return _in_memory_calendar_events.get(event_id)
+
+
+async def list_calendar_events(
+    user_id: Optional[str] = None,
+    status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    customer_name: Optional[str] = None,
+    limit: int = 100,
+) -> List[dict]:
+    """
+    List calendar events filtered by user, status, date bounds, or customer name.
+    Sorted by start_time ascending.
+    """
+    clean_user_id = _ensure_uuid(user_id)
+    client = get_supabase()
+    try:
+        query = client.table("calendar_events").select("*")
+        if clean_user_id:
+            query = query.eq("user_id", clean_user_id)
+        if status:
+            query = query.eq("status", status)
+        if start_date:
+            query = query.gte("start_time", start_date)
+        if end_date:
+            query = query.lte("start_time", end_date)
+        if customer_name:
+            query = query.ilike("customer_name", f"%{customer_name}%")
+        query = query.order("start_time", desc=False).limit(limit)
+        res = await asyncio.to_thread(query.execute)
+        if res and res.data:
+            return res.data
+    except Exception as e:
+        logger.warning(f"Error listing calendar events from Supabase: {e}")
+
+    # In-memory fallback
+    events = list(_in_memory_calendar_events.values())
+    if clean_user_id:
+        events = [e for e in events if str(e.get("user_id") or "") == clean_user_id]
+    if status:
+        events = [e for e in events if e.get("status") == status]
+    if customer_name:
+        cn_lower = customer_name.lower()
+        events = [e for e in events if cn_lower in str(e.get("customer_name") or "").lower()]
+    if start_date:
+        events = [e for e in events if str(e.get("start_time") or "") >= start_date]
+    if end_date:
+        events = [e for e in events if str(e.get("start_time") or "") <= end_date]
+
+    events.sort(key=lambda x: str(x.get("start_time") or ""))
+    return events[:limit]
+
+
+async def update_calendar_event(event_id: str, updates: dict) -> Optional[dict]:
+    """Update fields on a calendar event (e.g. status='completed', reschedule, reminders)."""
+    now = _now_iso()
+    clean_updates = dict(updates)
+    clean_updates["updated_at"] = now
+
+    if event_id in _in_memory_calendar_events:
+        _in_memory_calendar_events[event_id].update(clean_updates)
+
+    client = get_supabase()
+    try:
+        res = await asyncio.to_thread(
+            client.table("calendar_events").update(clean_updates).eq("id", event_id).execute
+        )
+        if res and res.data:
+            return res.data[0]
+    except Exception as e:
+        logger.warning(f"Error updating calendar event '{event_id}' in Supabase: {e}")
+
+    return _in_memory_calendar_events.get(event_id)
+
+
+async def delete_calendar_event(event_id: str) -> bool:
+    """Delete or cancel a calendar event."""
+    if event_id in _in_memory_calendar_events:
+        del _in_memory_calendar_events[event_id]
+
+    client = get_supabase()
+    try:
+        await asyncio.to_thread(
+            client.table("calendar_events").delete().eq("id", event_id).execute
+        )
+        return True
+    except Exception as e:
+        logger.warning(f"Error deleting calendar event '{event_id}' from Supabase: {e}")
+        return True
+

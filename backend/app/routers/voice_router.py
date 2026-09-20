@@ -376,6 +376,21 @@ async def analyze_call(call_id: str):
     )
 
     await db.update_voice_call(call_id, {"analysis": analysis})
+
+    # Auto-book to calendar if meeting was scheduled
+    try:
+        await voice_engine._maybe_auto_book_calendar(
+            call_id=call_id,
+            analysis=analysis,
+            transcript=transcript,
+            customer_name=call.get("customer_name"),
+            customer_phone=call.get("customer_phone"),
+            business_name=call.get("business_name"),
+            user_id=call.get("user_id"),
+        )
+    except Exception as e:
+        logger.warning(f"Error auto-booking calendar event from analyze endpoint: {e}")
+
     return {"success": True, "call_id": call_id, "analysis": analysis}
 
 

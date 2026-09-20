@@ -192,6 +192,37 @@ Provide the structured post-call JSON review now."""
     }
 
 
+async def _maybe_auto_book_calendar(
+    call_id: str,
+    analysis: dict,
+    transcript: list[dict],
+    customer_name: str,
+    customer_phone: Optional[str] = None,
+    business_name: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
+    """If post-call review indicates a meeting was booked, extract details and create calendar event."""
+    try:
+        outcome = str(analysis.get("call_outcome") or "").lower()
+        if "meeting" in outcome or "booked" in outcome:
+            from app.services import calendar_service
+            transcript_text = "\n".join([
+                f"[{t.get('timestamp', '00:00')}] {t.get('speaker', 'Unknown')}: {t.get('message', '')}"
+                for t in transcript
+            ]) if isinstance(transcript, list) else str(transcript)
+
+            await calendar_service.auto_book_meeting_from_call(
+                call_id=call_id,
+                transcript=transcript_text,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                business_name=business_name,
+                user_id=user_id,
+            )
+    except Exception as e:
+        logger.warning(f"Failed to auto-book calendar event for call {call_id}: {e}")
+
+
 # ─────────────────────────── Live Sarvam AI + Exotel Outbound Call ─────
 
 async def dispatch_sarvam_exotel_call(
@@ -560,6 +591,16 @@ async def simulate_call_lifecycle(
         "transcript": turns,
         "analysis": analysis,
     })
+
+    # Auto-book to calendar if meeting was scheduled
+    await _maybe_auto_book_calendar(
+        call_id=call_id,
+        analysis=analysis,
+        transcript=turns,
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        business_name=business_name,
+    )
 
     return {
         "success": True,

@@ -82,6 +82,7 @@ import {
 import { LeadRadarModule } from "@/components/modules/radar";
 import { VoiceFleetModule } from "@/components/modules/voice";
 import { VideoMeetingModule } from "@/components/modules/video";
+import { CalendarModule } from "@/components/modules/calendar";
 import { AnalyticsModule } from "@/components/modules/analytics";
 import { SettingsModule } from "@/components/modules/settings";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -2186,7 +2187,16 @@ function DashboardPage() {
               />
             )}
 
-            {/* 5. Analytics View */}
+            {/* 5. Calendar & Scheduled Meetings View */}
+            {activeNav === "calendar" && (
+              <CalendarModule
+                user={user}
+                session={session}
+                companyName={activeCompanyInfo.name}
+              />
+            )}
+
+            {/* 6. Analytics View */}
             {activeNav === "analytics" && (
               <AnalyticsModule
                 analysis={activeAnalysis}

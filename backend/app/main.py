@@ -39,6 +39,7 @@ from app.services import data_engine
 from app.services import rag_engine
 from app.routers import voice_router
 from app.routers import video_router
+from app.routers import calendar_router
 from app.services.search.router import get_search_router
 from config.domain_trust import classify_and_filter
 
@@ -78,6 +79,9 @@ app.include_router(voice_router.router, prefix="/api/voice", tags=["Voice Fleet"
 
 # Mount Video Sales Agent Router
 app.include_router(video_router.router, prefix="/api/video", tags=["Video Sales Agent"])
+
+# Mount Calendar & Scheduled Meetings Router
+app.include_router(calendar_router.router, prefix="/api/calendar", tags=["Calendar & Meetings"])
 
 # Also expose Vapi, Sarvam & Tavus Webhooks and Outbound at root path level for compatibility
 app.add_api_route("/webhook/vapi/custom-voice", voice_router.vapi_custom_voice_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
