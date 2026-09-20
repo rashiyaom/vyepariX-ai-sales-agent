@@ -3,15 +3,17 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import tailwindcss from "@tailwindcss/vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import react from "@vitejs/plugin-react";
+import { nitro } from "nitro/vite";
 import path from "node:path";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     tsconfigPaths({ projects: ["./tsconfig.json"] }),
     tailwindcss(),
     tanstackStart({
       server: { entry: "server" },
     }),
+    ...(command === "build" ? [nitro()] : []),
     react(),
   ],
   resolve: {
@@ -24,4 +26,4 @@ export default defineConfig({
     port: 8080,
   },
   envDir: path.resolve(import.meta.dirname, ".."),
-});
+}));
