@@ -39,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_EMBED_MODEL = "models/gemini-embedding-001"
+PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY", "")
+PINECONE_INDEX_NAME = os.environ.get("PINECONE_INDEX_NAME", "vyeparix-rag")
 CHROMA_PERSIST_DIR = os.environ.get("CHROMA_PERSIST_DIR", str(Path(__file__).resolve().parents[2] / "data" / "chroma_store"))
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
@@ -81,7 +83,7 @@ def _get_gemini_client():
 def _get_pinecone_index():
     """Return the Pinecone index instance."""
     try:
-        from pinecone import Pinecone
+        from pinecone import Pinecone  # type: ignore
         if not PINECONE_API_KEY:
             raise RuntimeError("PINECONE_API_KEY not set in .env")
         pc = Pinecone(api_key=PINECONE_API_KEY)
@@ -179,8 +181,9 @@ def _embed_texts_sync(texts: list, task_type: str = "RETRIEVAL_DOCUMENT") -> lis
                     f"[RAG] Gemini embedding unexpected error: {e}"
                 ) from e
 
-        if result and hasattr(result, "embeddings"):
-            for emb in result.embeddings:
+        embeddings = getattr(result, "embeddings", None)
+        if embeddings:
+            for emb in embeddings:
                 vectors.append(emb.values)
 
     return vectors

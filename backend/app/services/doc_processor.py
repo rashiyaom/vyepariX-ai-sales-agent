@@ -48,10 +48,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+_root_env = Path(__file__).resolve().parent.parent.parent.parent / ".env"
 _backend_env = Path(__file__).resolve().parent.parent.parent / ".env"
-if _backend_env.exists():
+if _root_env.exists():
+    load_dotenv(_root_env)
+elif _backend_env.exists():
     load_dotenv(_backend_env)
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

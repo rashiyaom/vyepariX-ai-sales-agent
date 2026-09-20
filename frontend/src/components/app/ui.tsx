@@ -103,9 +103,9 @@ export function StatGrid({ children }: { children: ReactNode }) {
 }
 
 /* ── Live indicator dot ── */
-export function LiveDot({ label = "Live" }: { label?: string }) {
+export function LiveDot({ label = "Live", className = "" }: { label?: string; className?: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-emerald-700 dark:text-lime font-bold">
+    <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] text-emerald-700 dark:text-lime font-bold ${className}`}>
       <span className="inline-block h-1.5 w-1.5 bg-emerald-600 dark:bg-lime live-dot" />
       {label}
     </span>
@@ -264,9 +264,9 @@ export function Terminal({
   }, [lines, typewriter]);
 
   return (
-    <div className="border border-neutral-800 bg-neutral-950 p-4 text-neutral-100 dark:bg-black fade-in-up">
+    <div className="border border-ink bg-ink p-4 text-paper fade-in-up">
       <div className="flex items-center justify-between">
-        <div className="label-mono text-neutral-400">vyaperi-x@sales-engine:~ {title}</div>
+        <div className="label-mono text-paper/50">vyaperi-x@sales-engine:~ {title}</div>
         <LiveDot label="running" />
       </div>
       <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed">

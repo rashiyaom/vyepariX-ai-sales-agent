@@ -1,63 +1,49 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Build Outputs & Caches
-dist/
-.output/
-.tanstack/
+# Node modules & build outputs
+node_modules
+**/node_modules
+dist
+**/dist
+dist-ssr
+.output
+.vinxi
+.tanstack/**
+.nitro
+*.local
+.env
+.env.*
+!.env.example
+
+# Wrangler / Cloudflare / Vercel
+.wrangler/
+.dev.vars
 .vercel
-.turbo
 
-# Python & FastAPI
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local runtime data
+.data/
+**/.data/
+backend/mongodb_data/
+backend/data/chroma_store/
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.pytest_cache/
-*.sqlite
-*.sqlite3
-*.db
-mongodb_data/
-backend/mongodb_data/
-
-# Environment & Secrets (NEVER COMMIT)
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Supabase Local Temp
-supabase/.temp/
-.temp/
-
-# OS Files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Video files & heavy submodules (do not push to repo)
-drive-download-*/
-tools/upscayl-repo/
-tools/*.webp
-tools/*.png
-tools/model_tests/
-frontend/public/sample_4k/*.png
-!frontend/public/videos/*.mp4
-
-# MongoDB local storage
-mongodb_data/
-backend/mongodb_data/
+pyrightconfig.json
+.vscode/settings.json
 

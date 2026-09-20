@@ -6,14 +6,14 @@ import react from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import path from "node:path";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     tsconfigPaths({ projects: ["./tsconfig.json"] }),
     tailwindcss(),
     tanstackStart({
       server: { entry: "server" },
     }),
-    nitro(),
+    ...(command === "build" ? [nitro()] : []),
     react(),
   ],
   resolve: {
@@ -25,4 +25,5 @@ export default defineConfig({
     host: "::",
     port: 8080,
   },
-});
+  envDir: path.resolve(import.meta.dirname, ".."),
+}));

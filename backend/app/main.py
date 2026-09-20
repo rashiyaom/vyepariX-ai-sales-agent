@@ -24,6 +24,7 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 from urllib.parse import urlparse
 
+from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +45,9 @@ from app.routers import profile_router
 from app.services.search.router import get_search_router
 from config.domain_trust import classify_and_filter
 
+_root_env = Path(__file__).resolve().parents[2] / ".env"
+if _root_env.exists():
+    load_dotenv(_root_env)
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)

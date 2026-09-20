@@ -13,6 +13,20 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
+import { Route as DashboardAttackDemoRouteImport } from './routes/dashboard.attack-demo'
+import { Route as DashboardDelegationAuditRouteImport } from './routes/dashboard.delegation-audit'
+import { Route as DashboardDelegationDemoRouteImport } from './routes/dashboard.delegation-demo'
+import { Route as DashboardIdentityRouteImport } from './routes/dashboard.identity'
+import { Route as DashboardInspectorRouteImport } from './routes/dashboard.inspector'
+import { Route as DashboardPoliciesRouteImport } from './routes/dashboard.policies'
+import { Route as DashboardRagRouteImport } from './routes/dashboard.rag'
+import { Route as DashboardRegistryRouteImport } from './routes/dashboard.registry'
+import { Route as DashboardReviewQueueRouteImport } from './routes/dashboard.review-queue'
+import { Route as DashboardSimulationRouteImport } from './routes/dashboard.simulation'
+import { Route as DashboardViolationsRouteImport } from './routes/dashboard.violations'
+import { Route as DashboardWorkspaceRouteImport } from './routes/dashboard.workspace'
 import { Route as ScraperIndexRouteImport } from './routes/scraper/index'
 import { Route as ScraperReportIdRouteImport } from './routes/scraper/report.$id'
 
@@ -36,6 +50,77 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAttackDemoRoute = DashboardAttackDemoRouteImport.update({
+  id: '/attack-demo',
+  path: '/attack-demo',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardDelegationAuditRoute =
+  DashboardDelegationAuditRouteImport.update({
+    id: '/delegation-audit',
+    path: '/delegation-audit',
+    getParentRoute: () => DashboardRoute,
+  } as any)
+const DashboardDelegationDemoRoute = DashboardDelegationDemoRouteImport.update({
+  id: '/delegation-demo',
+  path: '/delegation-demo',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardIdentityRoute = DashboardIdentityRouteImport.update({
+  id: '/identity',
+  path: '/identity',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardInspectorRoute = DashboardInspectorRouteImport.update({
+  id: '/inspector',
+  path: '/inspector',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardPoliciesRoute = DashboardPoliciesRouteImport.update({
+  id: '/policies',
+  path: '/policies',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRagRoute = DashboardRagRouteImport.update({
+  id: '/rag',
+  path: '/rag',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRegistryRoute = DashboardRegistryRouteImport.update({
+  id: '/registry',
+  path: '/registry',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardReviewQueueRoute = DashboardReviewQueueRouteImport.update({
+  id: '/review-queue',
+  path: '/review-queue',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardSimulationRoute = DashboardSimulationRouteImport.update({
+  id: '/simulation',
+  path: '/simulation',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardViolationsRoute = DashboardViolationsRouteImport.update({
+  id: '/violations',
+  path: '/violations',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardWorkspaceRoute = DashboardWorkspaceRouteImport.update({
+  id: '/workspace',
+  path: '/workspace',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const ScraperIndexRoute = ScraperIndexRouteImport.update({
   id: '/scraper/',
   path: '/scraper/',
@@ -49,26 +134,67 @@ const ScraperReportIdRoute = ScraperReportIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/pricing': typeof PricingRoute
+  '/dashboard/attack-demo': typeof DashboardAttackDemoRoute
+  '/dashboard/delegation-audit': typeof DashboardDelegationAuditRoute
+  '/dashboard/delegation-demo': typeof DashboardDelegationDemoRoute
+  '/dashboard/identity': typeof DashboardIdentityRoute
+  '/dashboard/inspector': typeof DashboardInspectorRoute
+  '/dashboard/policies': typeof DashboardPoliciesRoute
+  '/dashboard/rag': typeof DashboardRagRoute
+  '/dashboard/registry': typeof DashboardRegistryRoute
+  '/dashboard/review-queue': typeof DashboardReviewQueueRoute
+  '/dashboard/simulation': typeof DashboardSimulationRoute
+  '/dashboard/violations': typeof DashboardViolationsRoute
+  '/dashboard/workspace': typeof DashboardWorkspaceRoute
+  '/dashboard/': typeof DashboardIndexRoute
   '/scraper/': typeof ScraperIndexRoute
   '/scraper/report/$id': typeof ScraperReportIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/pricing': typeof PricingRoute
+  '/dashboard/attack-demo': typeof DashboardAttackDemoRoute
+  '/dashboard/delegation-audit': typeof DashboardDelegationAuditRoute
+  '/dashboard/delegation-demo': typeof DashboardDelegationDemoRoute
+  '/dashboard/identity': typeof DashboardIdentityRoute
+  '/dashboard/inspector': typeof DashboardInspectorRoute
+  '/dashboard/policies': typeof DashboardPoliciesRoute
+  '/dashboard/rag': typeof DashboardRagRoute
+  '/dashboard/registry': typeof DashboardRegistryRoute
+  '/dashboard/review-queue': typeof DashboardReviewQueueRoute
+  '/dashboard/simulation': typeof DashboardSimulationRoute
+  '/dashboard/violations': typeof DashboardViolationsRoute
+  '/dashboard/workspace': typeof DashboardWorkspaceRoute
+  '/dashboard': typeof DashboardIndexRoute
   '/scraper': typeof ScraperIndexRoute
   '/scraper/report/$id': typeof ScraperReportIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/dashboard': typeof DashboardRouteWithChildren
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/pricing': typeof PricingRoute
+  '/dashboard/attack-demo': typeof DashboardAttackDemoRoute
+  '/dashboard/delegation-audit': typeof DashboardDelegationAuditRoute
+  '/dashboard/delegation-demo': typeof DashboardDelegationDemoRoute
+  '/dashboard/identity': typeof DashboardIdentityRoute
+  '/dashboard/inspector': typeof DashboardInspectorRoute
+  '/dashboard/policies': typeof DashboardPoliciesRoute
+  '/dashboard/rag': typeof DashboardRagRoute
+  '/dashboard/registry': typeof DashboardRegistryRoute
+  '/dashboard/review-queue': typeof DashboardReviewQueueRoute
+  '/dashboard/simulation': typeof DashboardSimulationRoute
+  '/dashboard/violations': typeof DashboardViolationsRoute
+  '/dashboard/workspace': typeof DashboardWorkspaceRoute
+  '/dashboard/': typeof DashboardIndexRoute
   '/scraper/': typeof ScraperIndexRoute
   '/scraper/report/$id': typeof ScraperReportIdRoute
 }
@@ -79,14 +205,41 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/onboarding'
+    | '/pricing'
+    | '/dashboard/attack-demo'
+    | '/dashboard/delegation-audit'
+    | '/dashboard/delegation-demo'
+    | '/dashboard/identity'
+    | '/dashboard/inspector'
+    | '/dashboard/policies'
+    | '/dashboard/rag'
+    | '/dashboard/registry'
+    | '/dashboard/review-queue'
+    | '/dashboard/simulation'
+    | '/dashboard/violations'
+    | '/dashboard/workspace'
+    | '/dashboard/'
     | '/scraper/'
     | '/scraper/report/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/dashboard'
     | '/login'
     | '/onboarding'
+    | '/pricing'
+    | '/dashboard/attack-demo'
+    | '/dashboard/delegation-audit'
+    | '/dashboard/delegation-demo'
+    | '/dashboard/identity'
+    | '/dashboard/inspector'
+    | '/dashboard/policies'
+    | '/dashboard/rag'
+    | '/dashboard/registry'
+    | '/dashboard/review-queue'
+    | '/dashboard/simulation'
+    | '/dashboard/violations'
+    | '/dashboard/workspace'
+    | '/dashboard'
     | '/scraper'
     | '/scraper/report/$id'
   id:
@@ -95,15 +248,30 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/login'
     | '/onboarding'
+    | '/pricing'
+    | '/dashboard/attack-demo'
+    | '/dashboard/delegation-audit'
+    | '/dashboard/delegation-demo'
+    | '/dashboard/identity'
+    | '/dashboard/inspector'
+    | '/dashboard/policies'
+    | '/dashboard/rag'
+    | '/dashboard/registry'
+    | '/dashboard/review-queue'
+    | '/dashboard/simulation'
+    | '/dashboard/violations'
+    | '/dashboard/workspace'
+    | '/dashboard/'
     | '/scraper/'
     | '/scraper/report/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRoute
+  DashboardRoute: typeof DashboardRouteWithChildren
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
+  PricingRoute: typeof PricingRoute
   ScraperIndexRoute: typeof ScraperIndexRoute
   ScraperReportIdRoute: typeof ScraperReportIdRoute
 }
@@ -138,6 +306,104 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/attack-demo': {
+      id: '/dashboard/attack-demo'
+      path: '/attack-demo'
+      fullPath: '/dashboard/attack-demo'
+      preLoaderRoute: typeof DashboardAttackDemoRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/delegation-audit': {
+      id: '/dashboard/delegation-audit'
+      path: '/delegation-audit'
+      fullPath: '/dashboard/delegation-audit'
+      preLoaderRoute: typeof DashboardDelegationAuditRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/delegation-demo': {
+      id: '/dashboard/delegation-demo'
+      path: '/delegation-demo'
+      fullPath: '/dashboard/delegation-demo'
+      preLoaderRoute: typeof DashboardDelegationDemoRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/identity': {
+      id: '/dashboard/identity'
+      path: '/identity'
+      fullPath: '/dashboard/identity'
+      preLoaderRoute: typeof DashboardIdentityRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/inspector': {
+      id: '/dashboard/inspector'
+      path: '/inspector'
+      fullPath: '/dashboard/inspector'
+      preLoaderRoute: typeof DashboardInspectorRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/policies': {
+      id: '/dashboard/policies'
+      path: '/policies'
+      fullPath: '/dashboard/policies'
+      preLoaderRoute: typeof DashboardPoliciesRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/rag': {
+      id: '/dashboard/rag'
+      path: '/rag'
+      fullPath: '/dashboard/rag'
+      preLoaderRoute: typeof DashboardRagRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/registry': {
+      id: '/dashboard/registry'
+      path: '/registry'
+      fullPath: '/dashboard/registry'
+      preLoaderRoute: typeof DashboardRegistryRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/review-queue': {
+      id: '/dashboard/review-queue'
+      path: '/review-queue'
+      fullPath: '/dashboard/review-queue'
+      preLoaderRoute: typeof DashboardReviewQueueRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/simulation': {
+      id: '/dashboard/simulation'
+      path: '/simulation'
+      fullPath: '/dashboard/simulation'
+      preLoaderRoute: typeof DashboardSimulationRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/violations': {
+      id: '/dashboard/violations'
+      path: '/violations'
+      fullPath: '/dashboard/violations'
+      preLoaderRoute: typeof DashboardViolationsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/workspace': {
+      id: '/dashboard/workspace'
+      path: '/workspace'
+      fullPath: '/dashboard/workspace'
+      preLoaderRoute: typeof DashboardWorkspaceRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/scraper/': {
       id: '/scraper/'
       path: '/scraper'
@@ -155,11 +421,48 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface DashboardRouteChildren {
+  DashboardAttackDemoRoute: typeof DashboardAttackDemoRoute
+  DashboardDelegationAuditRoute: typeof DashboardDelegationAuditRoute
+  DashboardDelegationDemoRoute: typeof DashboardDelegationDemoRoute
+  DashboardIdentityRoute: typeof DashboardIdentityRoute
+  DashboardInspectorRoute: typeof DashboardInspectorRoute
+  DashboardPoliciesRoute: typeof DashboardPoliciesRoute
+  DashboardRagRoute: typeof DashboardRagRoute
+  DashboardRegistryRoute: typeof DashboardRegistryRoute
+  DashboardReviewQueueRoute: typeof DashboardReviewQueueRoute
+  DashboardSimulationRoute: typeof DashboardSimulationRoute
+  DashboardViolationsRoute: typeof DashboardViolationsRoute
+  DashboardWorkspaceRoute: typeof DashboardWorkspaceRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
+}
+
+const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAttackDemoRoute: DashboardAttackDemoRoute,
+  DashboardDelegationAuditRoute: DashboardDelegationAuditRoute,
+  DashboardDelegationDemoRoute: DashboardDelegationDemoRoute,
+  DashboardIdentityRoute: DashboardIdentityRoute,
+  DashboardInspectorRoute: DashboardInspectorRoute,
+  DashboardPoliciesRoute: DashboardPoliciesRoute,
+  DashboardRagRoute: DashboardRagRoute,
+  DashboardRegistryRoute: DashboardRegistryRoute,
+  DashboardReviewQueueRoute: DashboardReviewQueueRoute,
+  DashboardSimulationRoute: DashboardSimulationRoute,
+  DashboardViolationsRoute: DashboardViolationsRoute,
+  DashboardWorkspaceRoute: DashboardWorkspaceRoute,
+  DashboardIndexRoute: DashboardIndexRoute,
+}
+
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRoute,
+  DashboardRoute: DashboardRouteWithChildren,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
+  PricingRoute: PricingRoute,
   ScraperIndexRoute: ScraperIndexRoute,
   ScraperReportIdRoute: ScraperReportIdRoute,
 }
