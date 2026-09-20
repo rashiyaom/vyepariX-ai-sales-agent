@@ -40,3 +40,10 @@ dist-ssr
 # Local runtime data
 .data/
 **/.data/
+backend/mongodb_data/
+backend/data/chroma_store/
+__pycache__/
+*.py[cod]
+pyrightconfig.json
+.vscode/settings.json
+
