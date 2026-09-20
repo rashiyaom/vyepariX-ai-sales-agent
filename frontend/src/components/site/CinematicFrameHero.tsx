@@ -2,6 +2,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/components/app/theme";
 import { Sun, Moon } from "lucide-react";
 
+const LOADING_STATUSES = [
+  "making phonebook list...",
+  "getting customer info...",
+  "enriching lead radar...",
+  "calibrating voice fleet...",
+  "system ready",
+];
+
 export function CinematicFrameHero() {
   const { theme, setTheme } = useTheme();
 
@@ -14,12 +22,51 @@ export function CinematicFrameHero() {
     theme === "dark" ? "dark" : "light",
   );
 
+  // Premium Preloader State
+  const [isLoading, setIsLoading] = useState(true);
+  const [isExiting, setIsExiting] = useState(false);
+  const [statusIndex, setStatusIndex] = useState(0);
+  const [progress, setProgress] = useState(15);
+  const [videoReady, setVideoReady] = useState(false);
+
   // Sync external theme changes
   useEffect(() => {
     if (theme === "dark" || theme === "light") {
       setCurrentTheme(theme);
     }
   }, [theme]);
+
+  // Video ready detection
+  const handleVideoLoaded = () => {
+    setVideoReady(true);
+  };
+
+  // Preloader progress & status ticker
+  useEffect(() => {
+    const statusTimer = setInterval(() => {
+      setStatusIndex((prev) => (prev < LOADING_STATUSES.length - 1 ? prev + 1 : prev));
+      setProgress((prev) => (prev < 90 ? prev + 20 : prev));
+    }, 420);
+
+    return () => clearInterval(statusTimer);
+  }, []);
+
+  // Graceful preloader exit once video is buffered
+  useEffect(() => {
+    // Wait until video is ready and at least 2 status steps have displayed
+    if (videoReady && statusIndex >= 2) {
+      setProgress(100);
+      const exitTimer = setTimeout(() => {
+        setIsExiting(true);
+        const removeTimer = setTimeout(() => {
+          setIsLoading(false);
+        }, 750);
+        return () => clearTimeout(removeTimer);
+      }, 350);
+
+      return () => clearTimeout(exitTimer);
+    }
+  }, [videoReady, statusIndex]);
 
   // Frame-accurate hardware video synchronization
   useEffect(() => {
@@ -44,7 +91,6 @@ export function CinematicFrameHero() {
     // Strict time alignment so transitions occur at the exact same millisecond
     const syncVideos = () => {
       if (Math.abs(lightVideo.currentTime - darkVideo.currentTime) > 0.04) {
-        // Master clock follows the currently visible video
         if (currentTheme === "light") {
           darkVideo.currentTime = lightVideo.currentTime;
         } else {
@@ -66,7 +112,6 @@ export function CinematicFrameHero() {
     setCurrentTheme(newTarget);
     setTheme(newTarget);
 
-    // Re-verify synchronization at trigger point
     const light = lightVideoRef.current;
     const dark = darkVideoRef.current;
     if (light && dark) {
@@ -85,6 +130,44 @@ export function CinematicFrameHero() {
         currentTheme === "dark" ? "bg-black" : "bg-[#f5f5f7]"
       }`}
     >
+      {/* ── PREMIUM MINIMAL PRELOADER OVERLAY ── */}
+      {isLoading && (
+        <div
+          className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#07080b] select-none transition-all duration-700 ease-out ${
+            isExiting ? "opacity-0 scale-105 pointer-events-none" : "opacity-100 scale-100"
+          }`}
+          style={{
+            background: "radial-gradient(circle at 50% 45%, #0f121d 0%, #050608 100%)",
+          }}
+        >
+          {/* Subtle Ambient Radial Backlight */}
+          <div className="absolute w-96 h-96 rounded-full bg-cyan-500/5 blur-3xl pointer-events-none" />
+
+          {/* Luxury Minimal Typography */}
+          <div className="relative z-10 flex flex-col items-center">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-[0.35em] text-white uppercase drop-shadow-[0_2px_16px_rgba(255,255,255,0.15)]">
+              VYEPARI X
+            </h1>
+
+            {/* Ultra-Fine Minimal Progress Bar */}
+            <div className="w-40 sm:w-52 h-[1.5px] bg-white/10 rounded-full mt-6 overflow-hidden relative">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-400 via-white to-amber-300 transition-all duration-300 ease-out shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            {/* Very Small Dynamic Micro-Status Text */}
+            <div className="flex items-center gap-2 mt-3.5 h-5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <p className="text-[10px] sm:text-[11px] font-mono tracking-widest text-neutral-400 lowercase transition-all duration-300">
+                {LOADING_STATUSES[statusIndex]}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── HARDWARE-ACCELERATED 2K LIGHT MODE VIDEO STREAM ── */}
       <video
         ref={lightVideoRef}
@@ -94,6 +177,8 @@ export function CinematicFrameHero() {
         loop
         autoPlay
         preload="auto"
+        onLoadedData={handleVideoLoaded}
+        onCanPlay={handleVideoLoaded}
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out pointer-events-none will-change-transform ${
           currentTheme === "light" ? "opacity-100 z-10" : "opacity-0 z-0"
         }`}
@@ -108,6 +193,8 @@ export function CinematicFrameHero() {
         loop
         autoPlay
         preload="auto"
+        onLoadedData={handleVideoLoaded}
+        onCanPlay={handleVideoLoaded}
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out pointer-events-none will-change-transform ${
           currentTheme === "dark" ? "opacity-100 z-10" : "opacity-0 z-0"
         }`}
