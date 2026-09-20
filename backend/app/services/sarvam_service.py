@@ -382,6 +382,7 @@ async def dispatch_sarvam_outbound_call(
 
     headers = {
         "Content-Type": "application/json",
+        "api-subscription-key": sarvam_key,
         "X-API-Key": sarvam_key,
     }
 

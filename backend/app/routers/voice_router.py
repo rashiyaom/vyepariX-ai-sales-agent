@@ -181,7 +181,7 @@ async def direct_outbound_call(payload: DirectOutboundCallRequest):
     }
     await db.create_voice_call(call_data, user_id=payload.user_id)
 
-    dispatch_res = await voice_engine.dispatch_sarvam_exotel_call(
+    dispatch_res = await voice_engine.dispatch_outbound_call(
         call_id=call_id,
         customer_name=customer_name,
         customer_phone=formatted_phone,
@@ -199,7 +199,7 @@ async def direct_outbound_call(payload: DirectOutboundCallRequest):
         "status": "success",
         "call_id": call_id,
         "call_sid": call_sid,
-        "sarvam_response": dispatch_res.get("sarvam_response"),
+        "details": dispatch_res,
     }
 
 
@@ -505,16 +505,20 @@ async def vapi_custom_voice_webhook(request: Request):
             text = msg.get("text", "")
             target_sr = msg.get("sampleRate") or 24000
             call_obj = msg.get("call", {})
-            # Determine language if specified in call assistant or default to hi
-            language = "hi"
+            # Determine language if specified in call assistant or default based on script
+            language = "en-IN"
+            combined_text = text
             if call_obj:
                 assistant = call_obj.get("assistant", {})
                 first_msg = assistant.get("firstMessage", "")
-                # Quick detection from first message characters if Gujarati
-                if any(ord(c) >= 0x0A80 and ord(c) <= 0x0AFF for c in first_msg + text):
-                    language = "gu"
-                elif any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in first_msg + text):
-                    language = "hi"
+                combined_text = f"{first_msg} {text}"
+
+            if any(ord(c) >= 0x0A80 and ord(c) <= 0x0AFF for c in combined_text):
+                language = "gu-IN"
+            elif any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in combined_text):
+                language = "hi-IN"
+            else:
+                language = "en-IN"
 
             creds = await voice_engine.get_credentials()
             speaker = creds.get("sarvam_speaker", "priya")

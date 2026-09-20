@@ -27,15 +27,14 @@ logger = logging.getLogger(__name__)
 # Primary and fallback models matching groq_client.py
 CANDIDATE_MODELS = [
     os.environ.get("GROQ_MODEL"),
-    "llama-3.3-70b-versatile",
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
     "groq/compound",
+    "groq/compound-mini",
     "qwen/qwen3.8-27b",
-    "qwen/qwen3.6-27b",
 ]
 PREFERRED_MODELS = [m for i, m in enumerate(CANDIDATE_MODELS) if m and m not in CANDIDATE_MODELS[:i]]
-MODEL_NAME = PREFERRED_MODELS[0] if PREFERRED_MODELS else "llama-3.3-70b-versatile"
+MODEL_NAME = PREFERRED_MODELS[0] if PREFERRED_MODELS else "openai/gpt-oss-120b"
 
 
 class BriefingCompilerError(Exception):
@@ -160,13 +159,25 @@ def compile_meeting_briefing(analysis: dict) -> dict:
                         "content": "return only valid JSON, no other text.",
                     })
 
-                resp = client.chat.completions.create(
-                    model=model_candidate,
-                    messages=messages,
-                    temperature=0.2,
-                    max_tokens=1500,
-                    response_format={"type": "json_object"},
-                )
+                try:
+                    resp = client.chat.completions.create(
+                        model=model_candidate,
+                        messages=messages,
+                        temperature=0.2,
+                        max_tokens=1500,
+                        response_format={"type": "json_object"},
+                    )
+                except Exception as json_mode_err:
+                    if "json" in str(json_mode_err).lower() or "400" in str(json_mode_err):
+                        logger.info(f"Model {model_candidate} json_object mode failed ({json_mode_err}), retrying in text mode...")
+                        resp = client.chat.completions.create(
+                            model=model_candidate,
+                            messages=messages,
+                            temperature=0.2,
+                            max_tokens=1500,
+                        )
+                    else:
+                        raise json_mode_err
 
                 raw_text = resp.choices[0].message.content or ""
                 briefing = _parse_and_validate_briefing(raw_text)

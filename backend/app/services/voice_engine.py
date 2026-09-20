@@ -201,10 +201,18 @@ async def _maybe_auto_book_calendar(
     business_name: Optional[str] = None,
     user_id: Optional[str] = None,
 ):
-    """If post-call review indicates a meeting was booked, extract details and create calendar event."""
+    """If post-call review or transcript indicates a meeting was booked/requested, extract details and create calendar event."""
     try:
         outcome = str(analysis.get("call_outcome") or "").lower()
-        if "meeting" in outcome or "booked" in outcome:
+        summary = str(analysis.get("summary") or "").lower()
+        action_items = " ".join(str(a) for a in analysis.get("action_items", [])).lower()
+        combined_text = f"{outcome} {summary} {action_items}"
+
+        is_meeting_intent = any(k in combined_text for k in [
+            "meeting", "booked", "demo", "scheduled", "appointment", "calendar", "call back", "sync"
+        ])
+
+        if is_meeting_intent or len(transcript) >= 2:
             from app.services import calendar_service
             transcript_text = "\n".join([
                 f"[{t.get('timestamp', '00:00')}] {t.get('speaker', 'Unknown')}: {t.get('message', '')}"
@@ -282,12 +290,14 @@ async def dispatch_outbound_call(
 ) -> dict:
     """
     Unified outbound call dispatcher.
-    Routes to Sarvam + Exotel by default, or Vapi if voice_provider is explicitly set to 'vapi'.
+    Routes to Vapi (with Twilio telephony carrier and Sarvam Indic Custom Voice) when configured,
+    or Sarvam + Exotel if telephony_provider is set to 'sarvam_exotel'.
     """
     creds = await get_credentials()
-    provider = (creds.get("voice_provider") or "sarvam").lower()
+    telephony = (os.getenv("TELEPHONY_PROVIDER") or creds.get("telephony_provider") or "vapi").lower()
+    has_vapi = bool(creds.get("vapi_api_key"))
 
-    if provider == "vapi":
+    if telephony in ("vapi", "twilio") or (has_vapi and telephony != "sarvam_exotel"):
         return await dispatch_vapi_call(
             call_id=call_id,
             customer_name=customer_name,
@@ -407,24 +417,24 @@ async def dispatch_vapi_call(
     provider = creds.get("voice_provider", "sarvam")
     saved_webhook = creds.get("public_webhook_url", "").strip()
 
-    # Auto-discover active ngrok tunnel if saved URL is empty or localhost
+    # Prioritize active local ngrok tunnel if running
     public_base_url = None
-    if saved_webhook and "localhost" not in saved_webhook and "127.0.0.1" not in saved_webhook:
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            resp = await client.get("http://localhost:4040/api/tunnels")
+            if resp.status_code == 200:
+                tunnels = resp.json().get("tunnels", [])
+                for t in tunnels:
+                    if t.get("proto") == "https":
+                        public_base_url = t.get("public_url")
+                        logger.info(f"Auto-discovered active local ngrok HTTPS tunnel: {public_base_url}")
+                        break
+    except Exception:
+        pass
+
+    # Fallback to configured saved webhook URL if no local ngrok is active
+    if not public_base_url and saved_webhook and "localhost" not in saved_webhook and "127.0.0.1" not in saved_webhook:
         public_base_url = saved_webhook
-    else:
-        # Check active ngrok process
-        try:
-            async with httpx.AsyncClient(timeout=1.5) as client:
-                resp = await client.get("http://localhost:4040/api/tunnels")
-                if resp.status_code == 200:
-                    tunnels = resp.json().get("tunnels", [])
-                    for t in tunnels:
-                        if t.get("proto") == "https":
-                            public_base_url = t.get("public_url")
-                            logger.info(f"Auto-discovered active ngrok HTTPS tunnel for Sarvam voice: {public_base_url}")
-                            break
-        except Exception:
-            pass
 
     if provider == "sarvam" and public_base_url:
         custom_url = f"{public_base_url.rstrip('/')}/webhook/vapi/custom-voice"
@@ -469,40 +479,44 @@ async def dispatch_vapi_call(
             "voiceId": v_id,
         }
 
+    assistant_config = {
+        "name": f"{business_name} Outbound SDR",
+        "firstMessage": first_message,
+        "silenceTimeoutSeconds": 10,
+        "maxDurationSeconds": 600,
+        "endCallFunctionEnabled": True,
+        "endCallPhrases": [
+            "goodbye", "bye", "talk to you soon", "thank you bye",
+            "alvida", "aavjo", "phir milenge", "call cut", "hang up", "cut the call",
+        ],
+        "transcriber": {
+            "provider": "deepgram",
+            "model": "flux-general-multi",
+            "confidenceThreshold": 0.3,
+        },
+        "startSpeakingPlan": {
+            "waitSeconds": 0.4,
+            "smartEndpointingEnabled": "livekit",
+        },
+        "model": {
+            "provider": "groq",
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": system_prompt}
+            ],
+        },
+        "voice": voice_block,
+    }
+    if public_base_url:
+        assistant_config["serverUrl"] = f"{public_base_url.rstrip('/')}/webhook/vapi"
+
     payload = {
         "phoneNumberId": phone_number_id,
         "customer": {
             "number": phone_clean,
             "name": customer_name,
         },
-        "assistant": {
-            "name": f"{business_name} Outbound SDR",
-            "firstMessage": first_message,
-            "silenceTimeoutSeconds": 10,
-            "maxDurationSeconds": 600,
-            "endCallFunctionEnabled": True,
-            "endCallPhrases": [
-                "goodbye", "bye", "talk to you soon", "thank you bye",
-                "alvida", "aavjo", "phir milenge", "call cut", "hang up", "cut the call",
-            ],
-            "transcriber": {
-                "provider": "deepgram",
-                "model": "flux-general-multi",
-                "confidenceThreshold": 0.3,
-            },
-            "startSpeakingPlan": {
-                "waitSeconds": 0.4,
-                "smartEndpointingEnabled": "livekit",
-            },
-            "model": {
-                "provider": "groq",
-                "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": system_prompt}
-                ],
-            },
-            "voice": voice_block,
-        },
+        "assistant": assistant_config,
     }
 
     try:
@@ -888,6 +902,22 @@ async def handle_vapi_webhook(payload: dict) -> dict:
             "recording_url": recording_url,
             "analysis": analysis,
         })
+
+        # Auto-book to calendar if meeting was scheduled
+        if analysis:
+            try:
+                await _maybe_auto_book_calendar(
+                    call_id=call_id,
+                    analysis=analysis,
+                    transcript=timely_turns,
+                    customer_name=customer_name,
+                    customer_phone=matching_call.get("customer_phone"),
+                    business_name=business_name,
+                    user_id=matching_call.get("user_id"),
+                )
+            except Exception as e:
+                logger.warning(f"Error auto-booking calendar from Vapi webhook: {e}")
+
         return {"status": "completed_and_analyzed", "call_id": call_id}
 
     return {"status": "received", "type": msg_type}
@@ -1021,6 +1051,22 @@ async def handle_sarvam_webhook(payload: dict) -> dict:
         updates["vapi_call_id"] = str(call_sid)
 
     await db.update_voice_call(target_call_id, updates)
+
+    # Auto-book to calendar if meeting was scheduled
+    if analysis:
+        try:
+            await _maybe_auto_book_calendar(
+                call_id=target_call_id,
+                analysis=analysis,
+                transcript=timely_turns,
+                customer_name=db_call.get("customer_name") or "Customer",
+                customer_phone=db_call.get("customer_phone"),
+                business_name=db_call.get("business_name") or "Vyepari CRM",
+                user_id=db_call.get("user_id"),
+            )
+        except Exception as e:
+            logger.warning(f"Error auto-booking calendar from Sarvam webhook: {e}")
+
     logger.info(f"Successfully processed Sarvam webhook for call {target_call_id}, status={final_status}")
     return {"status": "success", "call_id": target_call_id, "call_status": final_status}
 
@@ -1187,11 +1233,27 @@ async def sync_vapi_call_status(call_id: str, force_ended: bool = False) -> dict
 
             await db.update_voice_call(call_id, updates)
             call.update(updates)
+
+            # Auto-book to calendar if meeting was scheduled
+            if analysis and timely_turns:
+                try:
+                    await _maybe_auto_book_calendar(
+                        call_id=call_id,
+                        analysis=analysis,
+                        transcript=timely_turns,
+                        customer_name=call.get("customer_name") or "Customer",
+                        customer_phone=call.get("customer_phone"),
+                        business_name=call.get("business_name") or "Vyepari CRM",
+                        user_id=call.get("user_id"),
+                    )
+                except Exception as e:
+                    logger.warning(f"Error auto-booking calendar from sync_vapi_call_status: {e}")
+
             return call
 
         elif vapi_status in ("ringing", "in-progress", "queued", "forwarding"):
             mapped = "in-progress" if has_connected else "ringing"
-            updates = {"status": mapped}
+            updates: dict[str, Any] = {"status": mapped}
             if timely_turns:
                 updates["transcript"] = timely_turns
             await db.update_voice_call(call_id, updates)

@@ -123,7 +123,7 @@ async def start_video_meeting(
 
     # 2. Check ownership (allow if report belongs to user, is unassigned, or belongs to active owner)
     report_user_id = str(report.get("user_id") or "").strip()
-    user_id_str = str(user.id).strip()
+    user_id_str = user.id.strip()
     google_sub = str(user.user_metadata.get("sub") or "").strip()
 
     is_owner = (
@@ -201,6 +201,7 @@ async def start_video_meeting(
     # Build Tavus v2 create conversation request payload
     tavus_payload: Dict[str, Any] = {
         "pal_id": tavus_pal_id,
+        "persona_id": tavus_pal_id,
         "conversational_context": briefing["conversational_context"],
         "custom_greeting": briefing["custom_greeting"],
     }
@@ -265,7 +266,7 @@ async def start_video_meeting(
 
     call_record = {
         "id": video_call_id,
-        "user_id": str(user.id),
+        "user_id": user.id,
         "report_id": report_id,
         "customer_name": "Prospect",
         "business_name": company_name,
@@ -287,7 +288,7 @@ async def start_video_meeting(
     }
 
     try:
-        await db.create_video_call(call_record, user_id=str(user.id))
+        await db.create_video_call(call_record, user_id=user.id)
         logger.info(
             f"Video call {video_call_id} registered successfully (Tavus ID: {conversation_id})"
         )
@@ -469,7 +470,7 @@ async def get_video_meeting(
     Returns 404 if it does not exist or does not belong to the authenticated user.
     """
     call = await db.get_video_call(id.strip())
-    if not call or str(call.get("user_id") or "") != str(user.id):
+    if not call or str(call.get("user_id") or "") != user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Video call '{id}' not found.",
@@ -522,7 +523,7 @@ async def end_video_meeting(
     5. Returns updated status to caller.
     """
     call = await db.get_video_call(id.strip())
-    if not call or str(call.get("user_id") or "") != str(user.id):
+    if not call or str(call.get("user_id") or "") != user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Video call '{id}' not found.",
@@ -594,7 +595,7 @@ async def list_video_meetings(
     """
     Lists the authenticated user's video_calls rows, newest first, scoped to their user_id.
     """
-    calls = await db.list_video_calls(user_id=str(user.id), limit=limit)
+    calls = await db.list_video_calls(user_id=user.id, limit=limit)
     return calls
 
 

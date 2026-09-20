@@ -26,10 +26,17 @@ FALLBACK_MODELS = [
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
     "groq/compound",
+    "groq/compound-mini",
     "qwen/qwen3.8-27b",
-    "qwen/qwen3.6-27b",
 ]
 PREFERRED_MODELS = [m for i, m in enumerate(FALLBACK_MODELS) if m and m not in FALLBACK_MODELS[:i]]
+GROQ_MODEL: str = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+
+
+def get_groq_api_key() -> str:
+    """Return active Groq API key from environment."""
+    load_dotenv(override=True)
+    return (os.environ.get("GROQ_API_KEY") or "").strip()
 
 
 def _clean_str_list(v: Any) -> list[str]:
@@ -572,7 +579,7 @@ CRITICAL INSTRUCTIONS:
 Return ONLY valid JSON matching the schema.
 """
 
-    messages = [
+    messages: Any = [
         {"role": "system", "content": GLOBAL_SYNTHESIS_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
@@ -587,13 +594,26 @@ Return ONLY valid JSON matching the schema.
 
         logger.info(f"Calling Groq Global Synthesis (model={target_model}, max_tokens={safe_max_tokens})...")
         try:
-            resp = client.chat.completions.create(
-                model=target_model,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=safe_max_tokens,
-                response_format={"type": "json_object"},
-            )
+            try:
+                resp = client.chat.completions.create(
+                    model=target_model,
+                    messages=messages,
+                    temperature=0.2,
+                    max_tokens=safe_max_tokens,
+                    response_format={"type": "json_object"},
+                )
+            except Exception as json_mode_err:
+                if "json" in str(json_mode_err).lower() or "400" in str(json_mode_err):
+                    logger.info(f"Model {target_model} json_object mode failed ({json_mode_err}), retrying with standard prompt...")
+                    resp = client.chat.completions.create(
+                        model=target_model,
+                        messages=messages,
+                        temperature=0.2,
+                        max_tokens=safe_max_tokens,
+                    )
+                else:
+                    raise json_mode_err
+
             raw = resp.choices[0].message.content or ""
             raw = _strip_json_fences(raw)
 
