@@ -25,6 +25,8 @@ venv.bak/
 *.sqlite
 *.sqlite3
 *.db
+mongodb_data/
+backend/mongodb_data/
 
 # Environment & Secrets (NEVER COMMIT)
 .env
@@ -53,6 +55,9 @@ tools/*.webp
 tools/*.png
 tools/model_tests/
 frontend/public/sample_4k/*.png
-*.mp4
 !frontend/public/videos/*.mp4
+
+# MongoDB local storage
+mongodb_data/
+backend/mongodb_data/
 

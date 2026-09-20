@@ -40,6 +40,7 @@ from app.services import rag_engine
 from app.routers import voice_router
 from app.routers import video_router
 from app.routers import calendar_router
+from app.routers import profile_router
 from app.services.search.router import get_search_router
 from config.domain_trust import classify_and_filter
 
@@ -82,6 +83,9 @@ app.include_router(video_router.router, prefix="/api/video", tags=["Video Sales 
 
 # Mount Calendar & Scheduled Meetings Router
 app.include_router(calendar_router.router, prefix="/api/calendar", tags=["Calendar & Meetings"])
+
+# Mount User Profile Router (backed by MongoDB)
+app.include_router(profile_router.router, prefix="/api/profile", tags=["User Profile"])
 
 # Also expose Vapi, Sarvam & Tavus Webhooks and Outbound at root path level for compatibility
 app.add_api_route("/webhook/vapi/custom-voice", voice_router.vapi_custom_voice_webhook, methods=["POST"], tags=["Voice Fleet Webhook"])
@@ -169,6 +173,22 @@ async def register_user(payload: RegisterRequest):
             )
             user_id = res.user.id
 
+        # Upsert user profile into MongoDB
+        try:
+            await db.upsert_profile(
+                user_id,
+                {
+                    "email": email_clean,
+                    "full_name": payload.full_name or "",
+                    "company_name": payload.company_name or "My Enterprise",
+                    "industry": payload.industry or "SaaS / Technology",
+                    "onboarding_completed": False,
+                    "role": "owner",
+                }
+            )
+        except Exception as profile_err:
+            logger.warning(f"Could not initialize MongoDB profile for {user_id}: {profile_err}")
+
         return {
             "success": True,
             "user_id": user_id,
@@ -188,6 +208,7 @@ async def get_current_user_profile(
     """
     Returns current authenticated user profile and Supabase UUID.
     Works with both Supabase JWT and Google OAuth bearer tokens.
+    Stores and retrieves all user profile and workspace metadata in MongoDB.
     """
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing authorization header")
@@ -198,6 +219,21 @@ async def get_current_user_profile(
     profile = await db.get_profile(auth_user.id)
     if not profile and auth_user.email:
         profile = await db.get_profile_by_email(auth_user.email)
+
+    if not profile:
+        meta = auth_user.user_metadata or {}
+        profile = await db.upsert_profile(
+            auth_user.id,
+            {
+                "email": auth_user.email or "",
+                "full_name": meta.get("full_name") or meta.get("name") or "",
+                "company_name": meta.get("company_name") or meta.get("company") or "",
+                "industry": meta.get("industry") or "SaaS / Technology",
+                "avatar_url": meta.get("avatar_url") or meta.get("picture") or "",
+                "role": "owner",
+                "onboarding_completed": bool(meta.get("onboarding_completed", False)),
+            }
+        )
 
     return {
         "id": auth_user.id,

@@ -43,6 +43,7 @@ class CreateCalendarEventRequest(BaseModel):
     reminder_minutes: Optional[int] = Field(15, description="Reminder alert minutes before event (e.g. 10, 15, 30, 60)")
     remind_via: Optional[str] = Field("popup", description="'popup' | 'email' | 'both'")
     call_id: Optional[str] = None
+    user_id: Optional[str] = None
     sync_to_google: Optional[bool] = False
     google_access_token: Optional[str] = None
 
@@ -68,13 +69,23 @@ async def list_events(
     end_date: Optional[str] = Query(None, description="ISO-8601 end upper bound"),
     customer_name: Optional[str] = Query(None, description="Filter/search by customer name"),
     limit: int = Query(100, ge=1, le=500),
+    authorization: Optional[str] = Header(None),
 ):
     """
     List all calendar meetings and scheduled calls.
     Supports filtering by customer name, status, and date range.
     """
+    resolved_user_id = user_id
+    if (not resolved_user_id or str(resolved_user_id).lower() in ("undefined", "null", "")) and authorization:
+        try:
+            auth_user = await auth_middleware.get_current_user(authorization)
+            if auth_user and auth_user.id:
+                resolved_user_id = auth_user.id
+        except Exception:
+            pass
+
     events = await db.list_calendar_events(
-        user_id=user_id,
+        user_id=resolved_user_id,
         status=status,
         start_date=start_date,
         end_date=end_date,
@@ -116,13 +127,12 @@ async def create_event(
     }
 
     # Extract user_id if token provided
-    user_id = None
-    if authorization:
+    resolved_user_id = payload.user_id
+    if (not resolved_user_id or str(resolved_user_id).lower() in ("undefined", "null", "")) and authorization:
         try:
-            token = authorization.replace("Bearer ", "").strip()
-            user_prof = await auth_middleware.get_current_user_optional(token)
-            if user_prof:
-                user_id = user_prof.get("id")
+            auth_user = await auth_middleware.get_current_user(authorization)
+            if auth_user and auth_user.id:
+                resolved_user_id = auth_user.id
         except Exception:
             pass
 
@@ -137,7 +147,7 @@ async def create_event(
             event_data["google_event_id"] = sync_res["google_event_id"]
             event_data["synced_to_google"] = True
 
-    event_id = await db.create_calendar_event(event_data, user_id=user_id)
+    event_id = await db.create_calendar_event(event_data, user_id=resolved_user_id)
     event_data["id"] = event_id
     return {"message": "Meeting scheduled successfully", "event": event_data}
 

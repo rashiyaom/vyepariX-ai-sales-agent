@@ -103,16 +103,43 @@
 }
 
 /* Accessibility contrast rules: ensure high contrast on accent backgrounds in both light & dark mode */
+.bg-lime,
+[class~="bg-lime"] {
+  color: oklch(0.12 0 0);
+}
 .bg-lime.text-ink,
 .bg-lime .text-ink,
-[class*="bg-lime"].text-ink {
+[class~="bg-lime"].text-ink {
   color: oklch(0.12 0 0) !important;
 }
 
+.bg-violet,
+[class~="bg-violet"] {
+  color: oklch(0.98 0 0);
+}
 .bg-violet.text-paper,
 .bg-violet .text-paper,
-[class*="bg-violet"].text-paper {
+[class~="bg-violet"].text-paper {
   color: oklch(0.98 0 0) !important;
+}
+
+/* Ensure .bg-ink with .text-paper has dark, high-contrast text on bright buttons in dark mode */
+.dark .bg-ink.text-paper,
+.dark .bg-ink .text-paper,
+.dark [class~="bg-ink"].text-paper {
+  color: oklch(0.12 0.012 255) !important;
+  fill: oklch(0.12 0.012 255) !important;
+}
+.dark .bg-ink.text-paper *,
+.dark [class~="bg-ink"].text-paper * {
+  color: inherit;
+}
+.dark .bg-ink.text-paper:hover,
+.dark [class~="bg-ink"].text-paper:hover,
+.dark .bg-ink.text-paper:hover *,
+.dark [class~="bg-ink"].text-paper:hover * {
+  color: oklch(0.98 0 0) !important;
+  fill: oklch(0.98 0 0) !important;
 }
 
 @utility brut-border {
@@ -393,11 +420,27 @@
 
   h1,
   h2,
-  h3 {
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-display);
     font-weight: 800;
     letter-spacing: -0.03em;
     text-transform: uppercase;
+    color: var(--color-foreground);
+  }
+
+  dt {
+    color: var(--color-foreground);
+  }
+
+  button,
+  input,
+  optgroup,
+  select,
+  textarea {
+    color: inherit;
   }
 }
 /* ─── PRINT STYLES — Intelligence Suite Executive Report ─── */

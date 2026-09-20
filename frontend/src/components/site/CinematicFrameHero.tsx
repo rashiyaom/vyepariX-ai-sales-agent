@@ -17,15 +17,21 @@ export function CinematicFrameHero() {
   const lightVideoRef = useRef<HTMLVideoElement | null>(null);
   const darkVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Active theme state
-  const [currentTheme, setCurrentTheme] = useState<"light" | "dark">(
-    theme === "dark" ? "dark" : "light",
-  );
+  // Active theme state with instant client storage fallback
+  const [currentTheme, setCurrentTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("vyaperi_theme");
+      if (saved === "dark" || saved === "light") return saved;
+      if (document.documentElement.classList.contains("dark")) return "dark";
+    }
+    return theme === "dark" ? "dark" : "light";
+  });
 
   // Premium Preloader State
   const [isLoading, setIsLoading] = useState(true);
   const [isExiting, setIsExiting] = useState(false);
   const [statusIndex, setStatusIndex] = useState(0);
+  const [progress, setProgress] = useState(18);
   const [videoReady, setVideoReady] = useState(false);
 
   // Sync external theme changes
@@ -40,10 +46,11 @@ export function CinematicFrameHero() {
     setVideoReady(true);
   };
 
-  // Preloader status ticker
+  // Preloader status & progress ticker
   useEffect(() => {
     const statusTimer = setInterval(() => {
       setStatusIndex((prev) => (prev < LOADING_STATUSES.length - 1 ? prev + 1 : prev));
+      setProgress((prev) => (prev < 90 ? prev + 18 : prev));
     }, 450);
 
     return () => clearInterval(statusTimer);
@@ -52,6 +59,7 @@ export function CinematicFrameHero() {
   // Graceful preloader exit once video is ready and initial phases complete
   useEffect(() => {
     if (videoReady && statusIndex >= 2) {
+      setProgress(100);
       const exitTimer = setTimeout(() => {
         setIsExiting(true);
         const removeTimer = setTimeout(() => {
@@ -185,9 +193,17 @@ export function CinematicFrameHero() {
             VYEPARI X
           </h1>
 
+          {/* Ultra-Fine Minimal Progress Bar */}
+          <div className="w-36 sm:w-48 h-[1.5px] bg-white/10 rounded-full mt-5 overflow-hidden relative">
+            <div
+              className="h-full bg-gradient-to-r from-lime via-white to-violet transition-all duration-300 ease-out shadow-[0_0_8px_rgba(214,255,68,0.7)]"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+
           {/* Very Small Micro-Status Ticker */}
-          <div className="flex items-center gap-2 mt-4 h-5">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+          <div className="flex items-center gap-2 mt-3.5 h-5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-lime animate-pulse" />
             <p className="text-[10px] sm:text-[11px] font-mono tracking-widest text-neutral-400 lowercase transition-all duration-300">
               {LOADING_STATUSES[statusIndex]}
             </p>

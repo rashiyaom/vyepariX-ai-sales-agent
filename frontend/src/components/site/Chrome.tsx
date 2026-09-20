@@ -28,7 +28,7 @@ export function Logo({ className = "" }: { className?: string }) {
         </svg>
       </span>
       <span className="flex items-baseline gap-1 sm:gap-1.5 whitespace-nowrap">
-        <span className="font-display text-sm sm:text-lg font-extrabold tracking-tight">
+        <span className="font-display text-sm sm:text-lg font-extrabold tracking-tight text-ink">
           VYAPERI X
         </span>
         <span className="hidden font-display text-xs sm:text-sm font-bold text-violet md:inline">
@@ -131,7 +131,7 @@ export function SiteHeader() {
 export function SiteFooter() {
   const { t } = useLang();
   return (
-    <footer className="border-t border-ink/20 bg-paper">
+    <footer className="border-t border-ink/20 bg-paper text-ink">
       <div className="mx-auto grid max-w-[1400px] gap-10 px-4 py-14 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
         <div>
           <Logo />
@@ -164,7 +164,7 @@ export function SiteFooter() {
         />
         <div>
           <h3 className="label-mono text-muted-foreground">Voice Regions Active</h3>
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs text-ink">
             {[
               "IN (Mumbai/Surat)",
               "AE (Dubai)",
@@ -172,7 +172,7 @@ export function SiteFooter() {
               "SG (Singapore)",
               "CO (Bogotá)",
             ].map((n, i) => (
-              <span key={n} className="flex items-center gap-3">
+              <span key={n} className="flex items-center gap-3 text-ink dark:text-neutral-200">
                 {i > 0 && <span className="text-violet">+</span>}
                 {n}
               </span>
@@ -237,7 +237,7 @@ export function SectionHead({
   return (
     <div className="flex flex-wrap items-baseline gap-4 border-b border-ink/20 pb-4 fade-in-up">
       <span className="label-mono text-violet">/{index}</span>
-      <h2 className="text-xl font-extrabold sm:text-2xl">{title}</h2>
+      <h2 className="text-xl font-extrabold sm:text-2xl text-ink">{title}</h2>
       {children}
     </div>
   );

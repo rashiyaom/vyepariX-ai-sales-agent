@@ -12,11 +12,14 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://adhgwqlulqeqpwycvmni.supabase.co")
-SUPABASE_JWT_SECRET = os.getenv(
-    "SUPABASE_JWT_SECRET",
-    "sMDSG6Z5CsaPtAXFcEc1gIY/ZyvZHaPB3ooS9cDkZH6mzvAh0r1OGdFs3d7PxhLmjlVttaeduSMvFIIv1kD3Zw=="
-)
+def _clean_supabase_url(url: str) -> str:
+    raw = (url or "").strip().rstrip("/")
+    if raw.endswith("/rest/v1"):
+        raw = raw[:-len("/rest/v1")].rstrip("/")
+    return raw
+
+SUPABASE_URL = _clean_supabase_url(os.getenv("SUPABASE_URL", ""))
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "test-secret-key-for-local-development")
 
 class AuthUser(BaseModel):
     id: str

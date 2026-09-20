@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useGoogleLogin } from "@react-oauth/google";
-import { supabase, isSupabaseConfigured } from "./supabase";
+import { supabase } from "./supabase";
+
+const API_BASE = (import.meta.env["VITE_SCRAPER_API_BASE"] as string) || "http://localhost:8000";
 
 export interface UserProfile {
   id: string;
@@ -12,6 +14,11 @@ export interface UserProfile {
   avatar_url?: string;
   role?: string;
   onboarding_completed?: boolean;
+  team_size?: string;
+  use_case?: string;
+  source?: string;
+  updated_at?: string;
+  created_at?: string;
 }
 
 interface AuthContextType {
@@ -51,41 +58,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch or sync user profile
-  const fetchProfile = async (currentUser: User) => {
+  // Fetch or sync user profile from MongoDB
+  const fetchProfile = async (currentUser: User, explicitToken?: string) => {
     try {
-      // First try to load from Supabase profiles table
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", currentUser.id)
-        .maybeSingle();
-
-      if (data && !error) {
-        setProfile(data as UserProfile);
-        return;
+      const token = explicitToken || session?.access_token || localStorage.getItem("vyepari_x_auth_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
       }
 
-      // Fallback to user metadata
-      const meta = (currentUser.user_metadata || {}) as Record<string, any>;
-      const fallbackProfile: UserProfile = {
-        id: currentUser.id,
-        email: currentUser.email || "",
-        full_name: (meta["full_name"] || meta["name"] || "") as string,
-        company_name: (meta["company_name"] || meta["company"] || "") as string,
-        industry: (meta["industry"] || "") as string,
-        avatar_url: (meta["avatar_url"] || meta["picture"] || "") as string,
-        role: "owner",
-        onboarding_completed: Boolean(meta["onboarding_completed"]),
-      };
-      setProfile(fallbackProfile);
+      // Query profile directly from MongoDB backend
+      const res = await fetch(`${API_BASE}/api/profile?user_id=${currentUser.id}`, {
+        headers,
+      });
 
-      // Attempt upsert into profiles table
-      if (isSupabaseConfigured) {
-        await supabase.from("profiles").upsert(fallbackProfile).select();
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.id) {
+          setProfile(data as UserProfile);
+          return;
+        }
       }
     } catch (err) {
-      console.warn("Could not fetch remote profile:", err);
+      console.warn("Could not fetch remote profile from MongoDB:", err);
+    }
+
+    // Fallback to user metadata
+    const meta = (currentUser.user_metadata || {}) as Record<string, any>;
+    const fallbackProfile: UserProfile = {
+      id: currentUser.id,
+      email: currentUser.email || "",
+      full_name: (meta["full_name"] || meta["name"] || "") as string,
+      company_name: (meta["company_name"] || meta["company"] || "") as string,
+      industry: (meta["industry"] || "") as string,
+      avatar_url: (meta["avatar_url"] || meta["picture"] || "") as string,
+      role: "owner",
+      onboarding_completed: Boolean(meta["onboarding_completed"]),
+    };
+    setProfile(fallbackProfile);
+
+    // Sync fallback into MongoDB
+    try {
+      const token = explicitToken || session?.access_token || localStorage.getItem("vyepari_x_auth_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      await fetch(`${API_BASE}/api/profile?user_id=${currentUser.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(fallbackProfile),
+      });
+    } catch (e) {
+      console.warn("Could not sync fallback profile to MongoDB:", e);
     }
   };
 
@@ -319,30 +344,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.updateUser({
         data: { onboarding_completed: true },
       });
-      if (isSupabaseConfigured) {
-        await supabase
-          .from("profiles")
-          .update({ onboarding_completed: true, updated_at: new Date().toISOString() })
-          .eq("id", user.id);
-      }
+      const token = session?.access_token || localStorage.getItem("vyepari_x_auth_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      await fetch(`${API_BASE}/api/profile?user_id=${user.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ onboarding_completed: true }),
+      });
       setProfile((prev) => (prev ? { ...prev, onboarding_completed: true } : null));
     } catch (e) {
-      console.warn("Failed to update onboarding status:", e);
+      console.warn("Failed to update onboarding status in MongoDB:", e);
     }
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
     try {
-      if (isSupabaseConfigured) {
-        await supabase
-          .from("profiles")
-          .update({ ...updates, updated_at: new Date().toISOString() })
-          .eq("id", user.id);
-      }
+      const token = session?.access_token || localStorage.getItem("vyepari_x_auth_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      await fetch(`${API_BASE}/api/profile?user_id=${user.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(updates),
+      });
       setProfile((prev) => (prev ? { ...prev, ...updates } : null));
     } catch (e) {
-      console.warn("Failed to update profile:", e);
+      console.warn("Failed to update profile in MongoDB:", e);
     }
   };
 
