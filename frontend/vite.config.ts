@@ -23,4 +23,5 @@ export default defineConfig({
     host: "::",
     port: 8080,
   },
+  envDir: path.resolve(import.meta.dirname, ".."),
 });
