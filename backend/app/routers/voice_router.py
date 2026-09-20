@@ -181,7 +181,7 @@ async def direct_outbound_call(payload: DirectOutboundCallRequest):
     }
     await db.create_voice_call(call_data, user_id=payload.user_id)
 
-    dispatch_res = await voice_engine.dispatch_sarvam_exotel_call(
+    dispatch_res = await voice_engine.dispatch_outbound_call(
         call_id=call_id,
         customer_name=customer_name,
         customer_phone=formatted_phone,
@@ -194,7 +194,7 @@ async def direct_outbound_call(payload: DirectOutboundCallRequest):
     if not dispatch_res.get("success"):
         raise HTTPException(status_code=500, detail=dispatch_res.get("error", "Call dispatch failed"))
 
-    call_sid = dispatch_res.get("call_sid") or call_id
+    call_sid = dispatch_res.get("call_sid") or dispatch_res.get("vapi_call_id") or call_id
     return {
         "status": "success",
         "call_id": call_id,

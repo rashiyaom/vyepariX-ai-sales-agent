@@ -291,11 +291,16 @@ async def dispatch_sarvam_outbound_call(
     Dispatch an outbound phone call via Sarvam AI Samvaad Outbound Agent API
     bridged with Exotel telephony.
     """
-    sarvam_key = (api_key or get_sarvam_api_key()).strip()
+    sarvam_key = (
+        api_key
+        or os.getenv("SARVAM_WORKSPACE_KEY")
+        or os.getenv("SARVAM_OUTBOUND_API_KEY")
+        or get_sarvam_api_key()
+    ).strip()
     if not sarvam_key:
         return {
             "success": False,
-            "error": "Sarvam API key is not configured. Set SARVAM_API_KEY in backend settings or .env",
+            "error": "Sarvam API key is not configured. Set SARVAM_API_KEY or SARVAM_WORKSPACE_KEY in backend settings or .env",
         }
 
     sarvam_url = os.getenv(
@@ -396,7 +401,15 @@ async def dispatch_sarvam_outbound_call(
                 resp_data = {"raw_text": resp.text}
 
             if resp.status_code not in (200, 201, 202):
-                err_msg = f"Sarvam API Error ({resp.status_code}): {resp_data}"
+                details = resp_data.get("error", {}).get("data", {}).get("details", "") if isinstance(resp_data, dict) else ""
+                if resp.status_code == 401 and "Invalid API key format" in str(details):
+                    err_msg = (
+                        "Sarvam API Error (401): Invalid API key format. "
+                        "The key in SARVAM_API_KEY is an API subscription key (api.sarvam.ai) for TTS/speech synthesis. "
+                        "Direct outbound calling at apps.sarvam.ai requires a Samvaad Workspace API key (from apps.sarvam.ai/settings/api-keys)."
+                    )
+                else:
+                    err_msg = f"Sarvam API Error ({resp.status_code}): {resp_data}"
                 logger.error(f"[{call_id}] {err_msg}")
                 return {
                     "success": False,

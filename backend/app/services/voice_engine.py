@@ -90,6 +90,11 @@ async def get_credentials() -> dict:
         "twilio_account_sid": db_settings.get("twilio_account_sid") or os.getenv("TWILIO_ACCOUNT_SID", ""),
         "twilio_auth_token": db_settings.get("twilio_auth_token") or os.getenv("TWILIO_AUTH_TOKEN", ""),
         "twilio_phone_number": db_settings.get("twilio_phone_number") or os.getenv("TWILIO_PHONE_NUMBER", ""),
+        "telephony_provider": (
+            db_settings.get("telephony_provider")
+            or os.getenv("TELEPHONY_PROVIDER")
+            or ("vapi" if (vapi_key or os.getenv("VAPI_API_KEY")) else "sarvam")
+        ).lower(),
         "voice_provider": db_settings.get("voice_provider") or os.getenv("VOICE_PROVIDER", "sarvam"),
         "voice_id": db_settings.get("voice_id") or os.getenv("VOICE_ID", "priya"),
         "sarvam_api_key": (
@@ -262,6 +267,22 @@ async def dispatch_sarvam_exotel_call(
         return {"success": True, "call_sid": call_sid, "status": "ringing"}
     else:
         err = result.get("error", "Failed to dispatch Sarvam outbound call")
+        # Automatic fallback to Vapi if Vapi credentials are configured
+        if creds.get("vapi_api_key") and creds.get("vapi_phone_number_id"):
+            logger.warning(
+                f"[{call_id}] Sarvam Outbound call failed ({err}). "
+                "Automatically falling back to primary Vapi Voice SDR..."
+            )
+            return await dispatch_vapi_call(
+                call_id=call_id,
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                business_name=business_name,
+                call_reason=call_reason,
+                language=language,
+                extra_context=extra_context,
+            )
+
         logger.error(f"[{call_id}] Sarvam outbound call failed: {err}")
         await db.update_voice_call(call_id, {
             "status": "failed",
@@ -282,12 +303,12 @@ async def dispatch_outbound_call(
 ) -> dict:
     """
     Unified outbound call dispatcher.
-    Routes to Sarvam + Exotel by default, or Vapi if voice_provider is explicitly set to 'vapi'.
+    Routes to Vapi AI (Primary Voice SDR System) or Sarvam Samvaad Outbound based on telephony configuration.
     """
     creds = await get_credentials()
-    provider = (creds.get("voice_provider") or "sarvam").lower()
+    telephony = (creds.get("telephony_provider") or "vapi").lower()
 
-    if provider == "vapi":
+    if telephony == "vapi" or (telephony != "sarvam" and creds.get("vapi_api_key")):
         return await dispatch_vapi_call(
             call_id=call_id,
             customer_name=customer_name,
@@ -307,6 +328,24 @@ async def dispatch_outbound_call(
             language=language,
             extra_context=extra_context,
         )
+
+
+async def _is_webhook_url_alive(base_url: str) -> bool:
+    """Verifies that the public webhook endpoint is actively responding, avoiding Vapi 404 call drops."""
+    if not base_url or "localhost" in base_url or "127.0.0.1" in base_url:
+        return False
+    custom_url = f"{base_url.rstrip('/')}/webhook/vapi/custom-voice"
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.post(
+                custom_url,
+                json={"ping": True},
+                headers={"ngrok-skip-browser-warning": "true"},
+            )
+            return resp.status_code == 200 and "application/json" in resp.headers.get("content-type", "")
+    except Exception:
+        pass
+    return False
 
 
 # ─────────────────────────── Live Vapi AI Outbound Call ────────────────
@@ -407,12 +446,12 @@ async def dispatch_vapi_call(
     provider = creds.get("voice_provider", "sarvam")
     saved_webhook = creds.get("public_webhook_url", "").strip()
 
-    # Auto-discover active ngrok tunnel if saved URL is empty or localhost
+    # Auto-discover or verify active webhook tunnel
     public_base_url = None
-    if saved_webhook and "localhost" not in saved_webhook and "127.0.0.1" not in saved_webhook:
+    if saved_webhook and await _is_webhook_url_alive(saved_webhook):
         public_base_url = saved_webhook
     else:
-        # Check active ngrok process
+        # Check active local ngrok process
         try:
             async with httpx.AsyncClient(timeout=1.5) as client:
                 resp = await client.get("http://localhost:4040/api/tunnels")
@@ -420,9 +459,11 @@ async def dispatch_vapi_call(
                     tunnels = resp.json().get("tunnels", [])
                     for t in tunnels:
                         if t.get("proto") == "https":
-                            public_base_url = t.get("public_url")
-                            logger.info(f"Auto-discovered active ngrok HTTPS tunnel for Sarvam voice: {public_base_url}")
-                            break
+                            ngrok_url = t.get("public_url")
+                            if await _is_webhook_url_alive(ngrok_url):
+                                public_base_url = ngrok_url
+                                logger.info(f"Auto-discovered verified active ngrok HTTPS tunnel for Sarvam voice: {public_base_url}")
+                                break
         except Exception:
             pass
 
@@ -437,8 +478,9 @@ async def dispatch_vapi_call(
         logger.info(f"Connected Sarvam AI Custom Voice endpoint to Vapi: {custom_url}")
     elif provider == "sarvam":
         logger.warning(
-            "Sarvam AI active but no public URL/ngrok tunnel detected. "
-            "Falling back to 11labs to prevent call disconnect. Start ngrok (ngrok http 8000) for Sarvam voice on live calls."
+            "Sarvam AI selected, but public webhook/ngrok tunnel is unreachable or returning 404. "
+            "Falling back to Vapi cloud voice (11labs 'sarah') to prevent 404 call drop. "
+            "Start ngrok (ngrok http 8000) to stream live Sarvam Bulbul:v3 audio."
         )
         voice_block = {
             "provider": "11labs",

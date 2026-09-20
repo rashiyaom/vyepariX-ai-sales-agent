@@ -27,15 +27,14 @@ logger = logging.getLogger(__name__)
 # Primary and fallback models matching groq_client.py
 CANDIDATE_MODELS = [
     os.environ.get("GROQ_MODEL"),
-    "llama-3.3-70b-versatile",
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
-    "groq/compound",
     "qwen/qwen3.8-27b",
-    "qwen/qwen3.6-27b",
+    "groq/compound-mini",
+    "groq/compound",
 ]
 PREFERRED_MODELS = [m for i, m in enumerate(CANDIDATE_MODELS) if m and m not in CANDIDATE_MODELS[:i]]
-MODEL_NAME = PREFERRED_MODELS[0] if PREFERRED_MODELS else "llama-3.3-70b-versatile"
+MODEL_NAME = PREFERRED_MODELS[0] if PREFERRED_MODELS else "openai/gpt-oss-120b"
 
 
 class BriefingCompilerError(Exception):
@@ -160,11 +159,12 @@ def compile_meeting_briefing(analysis: dict) -> dict:
                         "content": "return only valid JSON, no other text.",
                     })
 
+                safe_max_tokens = 950 if "qwen" in model_candidate.lower() else 1500
                 resp = client.chat.completions.create(
                     model=model_candidate,
                     messages=messages,
                     temperature=0.2,
-                    max_tokens=1500,
+                    max_tokens=safe_max_tokens,
                     response_format={"type": "json_object"},
                 )
 

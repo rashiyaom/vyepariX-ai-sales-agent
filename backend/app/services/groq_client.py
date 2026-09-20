@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any
 
 from dotenv import load_dotenv
@@ -25,11 +26,17 @@ FALLBACK_MODELS = [
     os.environ.get("GROQ_MODEL"),
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
-    "groq/compound",
     "qwen/qwen3.8-27b",
-    "qwen/qwen3.6-27b",
+    "groq/compound-mini",
+    "groq/compound",
 ]
 PREFERRED_MODELS = [m for i, m in enumerate(FALLBACK_MODELS) if m and m not in FALLBACK_MODELS[:i]]
+GROQ_MODEL = PREFERRED_MODELS[0] if PREFERRED_MODELS else "openai/gpt-oss-120b"
+
+
+def get_groq_api_key() -> str:
+    """Return active Groq API key from environment."""
+    return os.environ.get("GROQ_API_KEY", "")
 
 
 def _clean_str_list(v: Any) -> list[str]:
@@ -407,15 +414,16 @@ def analyze_single_document(doc_name: str, doc_type: str, content_text: str) -> 
     user_msg = f"DOCUMENT: {doc_name} (Format: {doc_type})\n\nCONTENT:\n{content_text[:12000]}"
 
     for target_model in PREFERRED_MODELS:
+        safe_max_tokens = 950 if "qwen" in target_model.lower() else 2000
         try:
             resp = client.chat.completions.create(
                 model=target_model,
                 messages=[
                     {"role": "system", "content": SINGLE_DOC_PROMPT},
-                    {"role": "user", "content": user_msg},
+                    {"role": "user", "content": user_msg[:10000]},
                 ],
                 temperature=0.1,
-                max_tokens=3000,
+                max_tokens=safe_max_tokens,
                 response_format={"type": "json_object"},
             )
             raw = _strip_json_fences(resp.choices[0].message.content or "")
@@ -424,7 +432,10 @@ def analyze_single_document(doc_name: str, doc_type: str, content_text: str) -> 
             data["source_type"] = doc_type
             return DocumentInsight.model_validate(data)
         except Exception as e:
-            logger.warning(f"Single doc analysis on {target_model} for {doc_name} failed: {e}. Trying next model...")
+            err_str = str(e)
+            logger.warning(f"Single doc analysis on {target_model} for {doc_name} failed: {err_str}. Trying next model...")
+            if "rate_limit" in err_str.lower() or "429" in err_str:
+                time.sleep(1.0)
             continue
 
     # Fallback
@@ -545,8 +556,20 @@ Incorporate these exact numbers into the executive summary, SWOT, and tactical r
         )
         logger.info("analyze_business: Using RAG-retrieved context for synthesis (grounded mode)")
     else:
-        primary_content = profile_markdown
-        content_note = "NOTE: Full scraped profile dossier provided below."
+        # Protect against exceeding Groq TPM limits (safe budget: 12,000 chars ≈ 3,000 tokens)
+        MAX_DOSSIER_CHARS = 12000
+        if len(profile_markdown) > MAX_DOSSIER_CHARS:
+            logger.info(
+                f"analyze_business: Profile dossier ({len(profile_markdown)} chars) exceeds budget. "
+                f"Budgeting top {MAX_DOSSIER_CHARS} chars for Groq rate limit compliance."
+            )
+            primary_content = (
+                profile_markdown[:MAX_DOSSIER_CHARS]
+                + f"\n\n[... Remaining dossier sections truncated for model token budget ({len(profile_markdown)} chars total) ...]"
+            )
+        else:
+            primary_content = profile_markdown
+        content_note = "NOTE: Scraped profile dossier provided below."
         logger.info("analyze_business: Using full profile markdown for synthesis (fallback mode)")
 
     user_prompt = f"""DOSSIER WITH {doc_count} ATTACHED DOCUMENTS & WEB ASSETS:
@@ -582,8 +605,10 @@ Return ONLY valid JSON matching the schema.
         candidate_models.insert(0, model)
 
     last_error = None
+    all_errors = []
     for target_model in candidate_models:
-        safe_max_tokens = 1800 if "qwen" in target_model.lower() else 3500
+        # qwen/qwen3.8-27b has a strict 1000 OTPM limit on the on-demand tier; other models support 2500+
+        safe_max_tokens = 950 if "qwen" in target_model.lower() else 2500
 
         logger.info(f"Calling Groq Global Synthesis (model={target_model}, max_tokens={safe_max_tokens})...")
         try:
@@ -629,8 +654,12 @@ Return ONLY valid JSON matching the schema.
 
         except Exception as api_err:
             err_str = str(api_err)
+            all_errors.append(f"{target_model}: {err_str}")
             logger.warning(f"Model {target_model} error: {err_str}. Trying next candidate...")
             last_error = api_err
+            if "rate_limit" in err_str.lower() or "429" in err_str:
+                time.sleep(1.5)
             continue
 
-    raise RuntimeError(f"Groq API failed on all candidate models: {last_error}")
+    errors_detail = "; ".join(all_errors)
+    raise RuntimeError(f"Groq API failed on all candidate models: {errors_detail}")
