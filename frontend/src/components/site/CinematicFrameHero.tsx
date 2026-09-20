@@ -26,7 +26,6 @@ export function CinematicFrameHero() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExiting, setIsExiting] = useState(false);
   const [statusIndex, setStatusIndex] = useState(0);
-  const [progress, setProgress] = useState(15);
   const [videoReady, setVideoReady] = useState(false);
 
   // Sync external theme changes
@@ -41,28 +40,25 @@ export function CinematicFrameHero() {
     setVideoReady(true);
   };
 
-  // Preloader progress & status ticker
+  // Preloader status ticker
   useEffect(() => {
     const statusTimer = setInterval(() => {
       setStatusIndex((prev) => (prev < LOADING_STATUSES.length - 1 ? prev + 1 : prev));
-      setProgress((prev) => (prev < 90 ? prev + 20 : prev));
-    }, 420);
+    }, 450);
 
     return () => clearInterval(statusTimer);
   }, []);
 
-  // Graceful preloader exit once video is buffered
+  // Graceful preloader exit once video is ready and initial phases complete
   useEffect(() => {
-    // Wait until video is ready and at least 2 status steps have displayed
     if (videoReady && statusIndex >= 2) {
-      setProgress(100);
       const exitTimer = setTimeout(() => {
         setIsExiting(true);
         const removeTimer = setTimeout(() => {
           setIsLoading(false);
         }, 750);
         return () => clearTimeout(removeTimer);
-      }, 350);
+      }, 500);
 
       return () => clearTimeout(exitTimer);
     }
@@ -130,40 +126,71 @@ export function CinematicFrameHero() {
         currentTheme === "dark" ? "bg-black" : "bg-[#f5f5f7]"
       }`}
     >
-      {/* ── PREMIUM MINIMAL PRELOADER OVERLAY ── */}
+      {/* ── PURE BLACK UIVERSE KINETIC PRELOADER OVERLAY ── */}
       {isLoading && (
         <div
-          className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#07080b] select-none transition-all duration-700 ease-out ${
+          className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black select-none transition-all duration-700 ease-out ${
             isExiting ? "opacity-0 scale-105 pointer-events-none" : "opacity-100 scale-100"
           }`}
-          style={{
-            background: "radial-gradient(circle at 50% 45%, #0f121d 0%, #050608 100%)",
-          }}
         >
-          {/* Subtle Ambient Radial Backlight */}
-          <div className="absolute w-96 h-96 rounded-full bg-cyan-500/5 blur-3xl pointer-events-none" />
-
-          {/* Luxury Minimal Typography */}
-          <div className="relative z-10 flex flex-col items-center">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-[0.35em] text-white uppercase drop-shadow-[0_2px_16px_rgba(255,255,255,0.15)]">
-              VYEPARI X
-            </h1>
-
-            {/* Ultra-Fine Minimal Progress Bar */}
-            <div className="w-40 sm:w-52 h-[1.5px] bg-white/10 rounded-full mt-6 overflow-hidden relative">
-              <div
-                className="h-full bg-gradient-to-r from-cyan-400 via-white to-amber-300 transition-all duration-300 ease-out shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                style={{ width: `${progress}%` }}
-              />
+          {/* Kinetic Ball Wheel */}
+          <div className="uiverse-main mb-8">
+            <div className="up">
+              <div className="uiverse-loaders">
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+                <div className="uiverse-loader" />
+              </div>
+              <div className="uiverse-loadersB">
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball0" />
+                </div>
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball1" />
+                </div>
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball2" />
+                </div>
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball3" />
+                </div>
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball4" />
+                </div>
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball5" />
+                </div>
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball6" />
+                </div>
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball7" />
+                </div>
+                <div className="uiverse-loaderA">
+                  <div className="uiverse-ball8" />
+                </div>
+              </div>
             </div>
+          </div>
 
-            {/* Very Small Dynamic Micro-Status Text */}
-            <div className="flex items-center gap-2 mt-3.5 h-5">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <p className="text-[10px] sm:text-[11px] font-mono tracking-widest text-neutral-400 lowercase transition-all duration-300">
-                {LOADING_STATUSES[statusIndex]}
-              </p>
-            </div>
+          {/* Minimal Title Only */}
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[0.4em] text-white uppercase select-none drop-shadow-[0_2px_20px_rgba(255,255,255,0.2)]">
+            VYEPARI X
+          </h1>
+
+          {/* Very Small Micro-Status Ticker */}
+          <div className="flex items-center gap-2 mt-4 h-5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <p className="text-[10px] sm:text-[11px] font-mono tracking-widest text-neutral-400 lowercase transition-all duration-300">
+              {LOADING_STATUSES[statusIndex]}
+            </p>
           </div>
         </div>
       )}
