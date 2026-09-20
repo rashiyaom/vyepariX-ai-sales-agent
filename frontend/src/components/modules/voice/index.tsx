@@ -777,8 +777,14 @@ export function VoiceFleetModule({
 
     if (isRealCall) {
       const cleanDigits = custPhone.replace(/[^\d]/g, "");
-      if (!custPhone || cleanDigits.length < 7) {
-        setLiveCallError("Please provide a valid destination phone number with country code (e.g. +91 98765 43210 or +1 555 123 4567).");
+      if (custPhone.startsWith("+91") || (cleanDigits.startsWith("91") && cleanDigits.length > 10)) {
+        const subDigits = custPhone.startsWith("+91") ? cleanDigits.slice(2) : cleanDigits.slice(2);
+        if (subDigits.length !== 10) {
+          setLiveCallError(`Invalid Indian phone number: entered ${subDigits.length} digits. Indian mobile numbers must have exactly 10 digits after +91 (e.g. +91 98765 43210).`);
+          return;
+        }
+      } else if (!custPhone || cleanDigits.length < 10) {
+        setLiveCallError("Please provide a valid 10-digit mobile number with country code (e.g. +91 98765 43210 or +1 555 123 4567).");
         return;
       }
       if (!custName) {

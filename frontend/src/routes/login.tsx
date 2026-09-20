@@ -20,6 +20,7 @@ import { Logo } from "@/components/site/Chrome";
 import { LangSwitcher, useLang } from "@/components/app/lang";
 import { ThemeToggle } from "@/components/app/theme";
 import { useAuth } from "@/lib/auth";
+import { GoogleLogin } from "@react-oauth/google";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -184,30 +185,17 @@ function LoginPage() {
     { key: "Commercial Analyst", desc: "Multi-source PDF/CSV/Web reports", company: "Meridian Partners" },
   ];
 
-  /* ─── Google OAuth Handler ─── */
   const handleGoogleLogin = async () => {
     setErrorMessage(null);
     setGoogleLoading(true);
     try {
-      const { error } = await signInWithGoogle();
-      if (error) {
-        if (error.message?.toLowerCase().includes("not enabled")) {
-          setErrorMessage(
-            "Google login is not enabled in your Supabase project yet. Please go to Supabase Dashboard -> Authentication -> Providers -> Google, toggle it ON, and add your Google Client ID & Secret."
-          );
-        } else {
-          setErrorMessage(
-            error.message || "Google sign-in could not be completed. Check Supabase Google provider settings."
-          );
-        }
-      }
+      await signInWithGoogle();
     } catch (err: any) {
       setErrorMessage(err?.message || "Google authentication failed.");
     } finally {
       setGoogleLoading(false);
     }
   };
-
 
   /* ─── Instant Admin Provisioning Bypass (Rate Limit Solution) ─── */
   const handleBypassRegister = async () => {

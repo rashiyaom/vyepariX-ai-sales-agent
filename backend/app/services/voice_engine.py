@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 
 from app.core import database as db
 from app.services import groq_client
+from app.services import sarvam_service
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ def _now_iso() -> str:
 
 async def get_credentials() -> dict:
     """Retrieve Vapi and Twilio keys from environment or SQLite settings."""
+    load_dotenv(override=True)
     db_settings = await db.get_voice_settings()
     vapi_key = db_settings.get("vapi_api_key") or os.getenv("VAPI_API_KEY", "")
     phone_number_id = db_settings.get("vapi_phone_number_id") or os.getenv("VAPI_PHONE_NUMBER_ID", "")
@@ -90,9 +92,17 @@ async def get_credentials() -> dict:
         "twilio_phone_number": db_settings.get("twilio_phone_number") or os.getenv("TWILIO_PHONE_NUMBER", ""),
         "voice_provider": db_settings.get("voice_provider") or os.getenv("VOICE_PROVIDER", "sarvam"),
         "voice_id": db_settings.get("voice_id") or os.getenv("VOICE_ID", "priya"),
-        "sarvam_api_key": db_settings.get("sarvam_api_key") or os.getenv("SARVAM_API_KEY", ""),
+        "sarvam_api_key": (
+            os.getenv("SARVAM_API_KEY", "")
+            or db_settings.get("sarvam_api_key")
+            or ""
+        ).strip(),
         "sarvam_speaker": db_settings.get("sarvam_speaker") or os.getenv("SARVAM_SPEAKER", "priya"),
-        "public_webhook_url": db_settings.get("public_webhook_url") or os.getenv("PUBLIC_WEBHOOK_URL", ""),
+        "public_webhook_url": (
+            db_settings.get("public_webhook_url")
+            or os.getenv("PUBLIC_WEBHOOK_URL", "")
+            or os.getenv("PUBLIC_BASE_URL", "")
+        ).strip(),
     }
 
 
@@ -180,6 +190,92 @@ Provide the structured post-call JSON review now."""
         "action_items": [f"Send follow-up email to {customer_name} summarizing call", "Schedule secondary sync next week"],
         "agent_performance_review": "Agent clearly presented the purpose of the call and captured next steps.",
     }
+
+
+# ─────────────────────────── Live Sarvam AI + Exotel Outbound Call ─────
+
+async def dispatch_sarvam_exotel_call(
+    call_id: str,
+    customer_name: str,
+    customer_phone: str,
+    business_name: str,
+    call_reason: str,
+    language: Optional[str] = "Hindi",
+    extra_context: Optional[dict] = None,
+) -> dict:
+    """
+    Dispatches live outbound phone call via Sarvam AI Samvaad Agent & Exotel gateway.
+    Persists call state and Sarvam call ID in Supabase.
+    """
+    creds = await get_credentials()
+    sarvam_key = creds.get("sarvam_api_key")
+
+    result = await sarvam_service.dispatch_sarvam_outbound_call(
+        call_id=call_id,
+        customer_phone=customer_phone,
+        customer_name=customer_name,
+        business_name=business_name,
+        call_reason=call_reason,
+        language=language or "Hindi",
+        extra_context=extra_context,
+        api_key=sarvam_key,
+    )
+
+    if result.get("success"):
+        call_sid = result.get("call_sid") or call_id
+        await db.update_voice_call(call_id, {
+            "status": "ringing",
+            "vapi_call_id": str(call_sid),
+            "started_at": _now_iso(),
+        })
+        return {"success": True, "call_sid": call_sid, "status": "ringing"}
+    else:
+        err = result.get("error", "Failed to dispatch Sarvam outbound call")
+        logger.error(f"[{call_id}] Sarvam outbound call failed: {err}")
+        await db.update_voice_call(call_id, {
+            "status": "failed",
+            "error_message": f"Sarvam/Exotel error: {err}",
+            "ended_at": _now_iso(),
+        })
+        return {"success": False, "error": err}
+
+
+async def dispatch_outbound_call(
+    call_id: str,
+    customer_name: str,
+    customer_phone: str,
+    business_name: str,
+    call_reason: str,
+    language: Optional[str] = "Hindi",
+    extra_context: Optional[dict] = None,
+) -> dict:
+    """
+    Unified outbound call dispatcher.
+    Routes to Sarvam + Exotel by default, or Vapi if voice_provider is explicitly set to 'vapi'.
+    """
+    creds = await get_credentials()
+    provider = (creds.get("voice_provider") or "sarvam").lower()
+
+    if provider == "vapi":
+        return await dispatch_vapi_call(
+            call_id=call_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            business_name=business_name,
+            call_reason=call_reason,
+            language=language,
+            extra_context=extra_context,
+        )
+    else:
+        return await dispatch_sarvam_exotel_call(
+            call_id=call_id,
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            business_name=business_name,
+            call_reason=call_reason,
+            language=language,
+            extra_context=extra_context,
+        )
 
 
 # ─────────────────────────── Live Vapi AI Outbound Call ────────────────
@@ -754,6 +850,138 @@ async def handle_vapi_webhook(payload: dict) -> dict:
         return {"status": "completed_and_analyzed", "call_id": call_id}
 
     return {"status": "received", "type": msg_type}
+
+
+# ─────────────────────────── Sarvam AI Webhook Receiver ───────────────────────
+
+async def handle_sarvam_webhook(payload: dict) -> dict:
+    """
+    Process incoming webhook callbacks from Sarvam AI Outbound agent.
+    Updates call status in Supabase, extracts interaction transcripts,
+    and runs Groq AI post-call review upon completion.
+    """
+    if not isinstance(payload, dict):
+        return {"status": "ignored", "reason": "Invalid payload format"}
+
+    logger.info(f"Received Sarvam Webhook: {json.dumps(payload)[:300]}")
+
+    metadata = payload.get("metadata") or {}
+    lead_id = metadata.get("lead_id") or payload.get("lead_id") or payload.get("call_id")
+
+    # Lookup call by lead_id (Supabase UUID) or call_sid
+    db_call = None
+    if lead_id:
+        db_call = await db.get_voice_call(str(lead_id))
+
+    call_sid = payload.get("call_id") or payload.get("call_sid")
+    if not db_call and call_sid:
+        recent_calls = await db.list_voice_calls(limit=50)
+        db_call = next((c for c in recent_calls if c.get("vapi_call_id") == str(call_sid)), None)
+
+    if not db_call:
+        logger.warning(f"Sarvam webhook: Call not found for lead_id={lead_id}, call_sid={call_sid}")
+        return {"status": "ignored", "reason": "Call not found"}
+
+    target_call_id = db_call["id"]
+    raw_status = str(payload.get("status") or "").strip().lower()
+
+    if raw_status in ("completed", "answered", "ended", "success"):
+        final_status = "completed"
+    elif raw_status in ("failed", "no_answer", "busy", "rejected", "canceled", "cancelled"):
+        final_status = "failed"
+    elif raw_status in ("ringing", "in_progress", "in-progress", "initiated"):
+        final_status = "in-progress"
+    else:
+        final_status = "completed" if raw_status else db_call.get("status", "in-progress")
+
+    # Extract interaction transcripts
+    raw_transcripts = payload.get("interaction_transcript") or []
+    timely_turns = []
+
+    if isinstance(raw_transcripts, list) and raw_transcripts:
+        sec = 4
+        for t in raw_transcripts:
+            if not isinstance(t, dict):
+                continue
+            role = str(t.get("role") or "unknown").strip().lower()
+            speaker = "agent" if role in ("agent", "assistant", "bot") else "customer"
+            en_text = (t.get("en_text") or "").strip()
+            indic_text = (t.get("indic_text") or t.get("iindic_text") or "").strip()
+            text = indic_text if indic_text else (en_text or str(t.get("text") or "").strip())
+
+            if text:
+                timely_turns.append({
+                    "speaker": speaker,
+                    "message": text,
+                    "timestamp": f"{sec//60:02d}:{sec%60:02d}",
+                    "en_text": en_text,
+                    "indic_text": indic_text,
+                })
+                sec += 9
+    elif payload.get("transcript"):
+        raw_text = str(payload.get("transcript"))
+        sec = 4
+        for line in raw_text.split("\n"):
+            if ":" in line:
+                p0, p1 = line.split(":", 1)
+                speaker = "agent" if "agent" in p0.lower() or "bot" in p0.lower() else "customer"
+                msg = p1.strip()
+                if msg:
+                    timely_turns.append({
+                        "speaker": speaker,
+                        "message": msg,
+                        "timestamp": f"{sec//60:02d}:{sec%60:02d}",
+                    })
+                    sec += 8
+    else:
+        # Fallback debug turn
+        timely_turns = db_call.get("transcript") or [
+            {
+                "speaker": "system",
+                "message": f"Sarvam event: status={raw_status}",
+                "timestamp": "00:00",
+            }
+        ]
+
+    # Calculate duration
+    duration = int(payload.get("duration_seconds") or payload.get("duration") or payload.get("call_duration") or 0)
+    if not duration and timely_turns:
+        duration = len(timely_turns) * 8
+    if not duration:
+        duration = int(db_call.get("duration_seconds") or 30)
+
+    # Trigger Groq Post-Call Review if completed or failed
+    analysis = db_call.get("analysis")
+    if final_status in ("completed", "failed") and timely_turns and not analysis:
+        try:
+            analysis = await asyncio.to_thread(
+                analyze_call_with_groq,
+                business_name=db_call.get("business_name") or "Vyepari CRM",
+                customer_name=db_call.get("customer_name") or "Customer",
+                call_reason=db_call.get("call_reason") or "Outbound Consultation",
+                transcript=timely_turns,
+                direction=db_call.get("direction") or "outbound",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to run Groq post-call analysis for Sarvam call {target_call_id}: {e}")
+
+    updates = {
+        "status": final_status,
+        "duration_seconds": duration,
+        "transcript": timely_turns,
+    }
+    if final_status in ("completed", "failed"):
+        updates["ended_at"] = _now_iso()
+    if analysis:
+        updates["analysis"] = analysis
+    if payload.get("recording_url"):
+        updates["recording_url"] = payload.get("recording_url")
+    if call_sid and not db_call.get("vapi_call_id"):
+        updates["vapi_call_id"] = str(call_sid)
+
+    await db.update_voice_call(target_call_id, updates)
+    logger.info(f"Successfully processed Sarvam webhook for call {target_call_id}, status={final_status}")
+    return {"status": "success", "call_id": target_call_id, "call_status": final_status}
 
 
 async def sync_vapi_call_status(call_id: str, force_ended: bool = False) -> dict:

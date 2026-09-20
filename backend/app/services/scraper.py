@@ -1,24 +1,37 @@
 """
 scraper.py — Universal multi-page web scraper.
 
-Layer 1 (fast):  httpx async + trafilatura  — works for ~60% of sites
-Layer 2 (JS):    playwright headless Chromium — handles React/Vue/Angular SPAs
-Link discovery:  Python stdlib html.parser — no BeautifulSoup dependency
+Layer 0 (search):   SearchRouter (DDG → Serper) — runs concurrently with homepage fetch in main.py
+Layer 1 (fast):     httpx async + trafilatura  — works for ~60% of sites
+Layer 2 (JS):       playwright headless Chromium — handles React/Vue/Angular SPAs
+Link discovery:     Python stdlib html.parser — no BeautifulSoup dependency
 
 Key features:
 - SSRF guard (rejects localhost/internal IPs)
 - robots.txt respect
 - Keyword-scored page prioritization
-- DuckDuckGo discovery (best-effort, never blocks the pipeline)
+- Domain trust tiers on every returned page dict (tier, confidence)
 - Content deduplication across pages
+- Structured observability log lines for metrics
+
+Note on Layer 0:
+    DDG search and company-name enrichment are handled entirely by
+    `app.services.search.router.SearchRouter` and `config.domain_trust`.
+    This module does NOT import ddgs or any search library directly.
+    `main.py` orchestrates the concurrent fetch + search and passes
+    seed_urls into `crawl_website()` and `fetch_seed_pages()`.
 """
+
+from __future__ import annotations
 
 import asyncio
 import ipaddress
 import logging
 import re
 import socket
+import time
 from html.parser import HTMLParser
+from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
 from urllib.robotparser import RobotFileParser
 
@@ -298,7 +311,6 @@ def _extract_semantic_elements(html: str) -> dict:
     elements["headings"] = [h for h in elements["headings"] if not (h in seen_h or seen_h.add(h))][:15]
 
     # 4. Pricing elements & currency patterns
-    # Find pricing cards, tables, or blocks mentioning currency
     pricing_patterns = re.finditer(
         r'(?:[$₹€£]\s*\d+(?:[.,]\d+)?(?:\s*(?:/\s*(?:mo|month|yr|year|user|seat|sq\.?ft|unit|piece|kg))|k|m)?)|(?:(?:₹|INR|USD|\$)\s*\d+)',
         html,
@@ -329,7 +341,6 @@ def _extract_semantic_elements(html: str) -> dict:
 
     # 6. Contact Information & Social Channels
     emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', html))
-    # Filter out common false positives
     clean_emails = [e for e in emails if not e.endswith(('.png', '.jpg', '.webp', '.js', '.css'))][:3]
     if clean_emails:
         elements["contact_info"].append(f"Email: {', '.join(clean_emails)}")
@@ -350,7 +361,7 @@ def _extract_text_fallback(html: str) -> str:
         # Strip script, style, head, noscript
         cleaned = re.sub(r"<(script|style|noscript|head)[^>]*>[\s\S]*?</\1>", " ", html, flags=re.IGNORECASE)
         # Block elements to newline
-        cleaned = re.sub(r"</?(div|p|h[1-6]|li|tr|th|td|section|article|header|footer|nav)[^>]*>", "\n", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"</?( div|p|h[1-6]|li|tr|th|td|section|article|header|footer|nav)[^>]*>", "\n", cleaned, flags=re.IGNORECASE)
         # Strip other HTML tags
         cleaned = re.sub(r"<[^>]+>", " ", cleaned)
         # Unescape standard entities
@@ -364,10 +375,23 @@ def _extract_text_fallback(html: str) -> str:
 
 # ─────────────────────────── Single Page ───────────────────────────────
 
-async def fetch_page(url: str, client: httpx.AsyncClient) -> dict:
+async def fetch_page(
+    url: str,
+    client: httpx.AsyncClient,
+    tier: str = "first_party",
+    confidence: float = 1.0,
+) -> dict:
     """
     Fetch a single page using universal 2-layer strategy with semantic structure extraction.
-    Returns: {url, title, text, semantic_elements, method}
+
+    Args:
+        url:        Target URL (already SSRF-checked by caller).
+        client:     Shared httpx.AsyncClient.
+        tier:       Trust tier from domain_trust classification.
+        confidence: Confidence score (0 < x ≤ 1.0) from domain_trust.
+
+    Returns:
+        dict with keys: url, title, text, semantic_elements, method, tier, confidence
     """
     raw_html, text = await _fetch_static(url, client)
     method = "static"
@@ -391,7 +415,11 @@ async def fetch_page(url: str, client: httpx.AsyncClient) -> dict:
             text = fb
 
     if not raw_html and not text:
-        return {"url": url, "title": "", "text": "", "semantic_elements": {}, "method": method}
+        return {
+            "url": url, "title": "", "text": "",
+            "semantic_elements": {}, "method": method,
+            "tier": tier, "confidence": confidence,
+        }
 
     # Extract rich semantic elements
     semantic = _extract_semantic_elements(raw_html or "")
@@ -428,6 +456,8 @@ async def fetch_page(url: str, client: httpx.AsyncClient) -> dict:
         "text": combined_text.strip(),
         "semantic_elements": semantic,
         "method": method,
+        "tier": tier,
+        "confidence": confidence,
     }
 
 
@@ -436,21 +466,29 @@ async def fetch_page(url: str, client: httpx.AsyncClient) -> dict:
 async def crawl_website(base_url: str) -> list[dict]:
     """
     Crawl up to MAX_PAGES pages of a website within CRAWL_BUDGET seconds.
-    Returns list of {url, title, text, method}.
+
+    All crawled pages carry tier="first_party" and confidence=1.0 because
+    they originate from the company's own domain.
+
+    Args:
+        base_url: Primary website URL (SSRF-checked before calling this function).
+
+    Returns:
+        list of page dicts with keys: url, title, text, method, tier, confidence
     """
     if not is_safe_url(base_url):
         raise ValueError(f"URL is not allowed (SSRF guard): {base_url}")
 
+    crawl_start = time.monotonic()
     pages: list[dict] = []
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        # Step 1: fetch homepage
-        homepage = await fetch_page(base_url, client)
+        # Step 1: fetch homepage (first_party, confidence 1.0)
+        homepage = await fetch_page(base_url, client, tier="first_party", confidence=1.0)
         if homepage["text"]:
             pages.append(homepage)
 
         # Step 2: extract internal links from homepage HTML
-        # We need raw HTML for link extraction — do a quick static re-fetch if needed
         try:
             resp = await client.get(base_url, headers=HEADERS, timeout=STATIC_TIMEOUT, follow_redirects=True)
             homepage_html = resp.text
@@ -486,41 +524,89 @@ async def crawl_website(base_url: str) -> list[dict]:
         # Concurrent fetch with overall time budget
         async def _safe_fetch(url: str) -> dict:
             try:
-                return await asyncio.wait_for(fetch_page(url, client), timeout=CRAWL_BUDGET / 3)
+                return await asyncio.wait_for(
+                    fetch_page(url, client, tier="first_party", confidence=1.0),
+                    timeout=CRAWL_BUDGET / 3,
+                )
             except asyncio.TimeoutError:
                 logger.warning(f"Timeout fetching {url}")
-                return {"url": url, "title": "", "text": "", "method": "timeout"}
+                return {"url": url, "title": "", "text": "", "method": "timeout", "tier": "first_party", "confidence": 1.0}
 
         results = await asyncio.gather(*[_safe_fetch(u) for u in candidate_links])
         pages.extend([r for r in results if r["text"]])
 
+    crawl_duration = time.monotonic() - crawl_start
+    logger.info(
+        '{"event": "crawl_stage_duration", "stage": "crawl", "seconds": %.2f, "pages": %d, "base_url": %r}',
+        crawl_duration,
+        len(pages),
+        base_url,
+    )
     logger.info(f"Crawled {len(pages)} pages from {base_url}")
     return pages
 
 
-# ─────────────────────────── DuckDuckGo Discovery ──────────────────────
+# ─────────────────────────── Seed URL Fetcher ──────────────────────────
 
-def discover_extra_context(company_name: str, domain: str) -> list[dict]:
+async def fetch_seed_pages(
+    seed_urls: list,           # list[SeedUrl] from config.domain_trust
+    existing_urls: set[str],
+    max_seed_pages: int = 5,
+) -> list[dict]:
     """
-    Best-effort DuckDuckGo search for supplementary context.
-    NEVER raises — always returns a (possibly empty) list.
+    Fetch DDG-discovered seed URLs that are not already in the crawled set.
+
+    This is Stage B of the two-stage crawl.  It runs after `crawl_website()`
+    (Stage A) completes, using the trust-tier metadata from
+    `config.domain_trust.classify_and_filter()`.
+
+    Args:
+        seed_urls:     Classified SeedUrl objects from domain_trust.
+        existing_urls: URLs already fetched by crawl_website() — deduplicated here.
+        max_seed_pages: Cap on how many seed pages to fetch (to bound latency).
+
+    Returns:
+        list of page dicts with tier and confidence populated from the SeedUrl.
     """
-    results = []
-    try:
-        try:
-            from ddgs import DDGS
-        except ImportError:
-            from duckduckgo_search import DDGS
-        with DDGS() as ddgs:
-            queries = [f"{company_name} products overview", f"{company_name} business"]
-            if domain:
-                queries.append(f"site:{domain}")
-            for query in queries:
-                try:
-                    for r in ddgs.text(query, max_results=5):
-                        results.append(r)
-                except Exception:
-                    continue
-    except Exception as e:
-        logger.info(f"DuckDuckGo discovery skipped: {e}")
-    return results
+    if not seed_urls:
+        return []
+
+    # Filter to URLs not already fetched, respecting SSRF guard and robots
+    candidates = []
+    for seed in seed_urls:
+        url = seed.url
+        # Normalise trailing slash for dedup
+        if url in existing_urls or url.rstrip("/") in existing_urls:
+            continue
+        if not is_safe_url(url):
+            continue
+        if not _is_allowed_by_robots(url):
+            continue
+        candidates.append(seed)
+        if len(candidates) >= max_seed_pages:
+            break
+
+    if not candidates:
+        return []
+
+    seed_pages: list[dict] = []
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        async def _fetch_seed(seed) -> dict:
+            try:
+                return await asyncio.wait_for(
+                    fetch_page(seed.url, client, tier=seed.tier, confidence=seed.confidence),
+                    timeout=CRAWL_BUDGET / 3,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Timeout fetching seed URL {seed.url}")
+                return {"url": seed.url, "title": "", "text": "", "method": "timeout", "tier": seed.tier, "confidence": seed.confidence}
+
+        results = await asyncio.gather(*[_fetch_seed(s) for s in candidates])
+        seed_pages = [r for r in results if r["text"]]
+
+    logger.info(
+        '{"event": "seed_pages_fetched", "count": %d, "requested": %d}',
+        len(seed_pages),
+        len(candidates),
+    )
+    return seed_pages

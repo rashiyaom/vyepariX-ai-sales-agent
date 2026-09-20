@@ -10,6 +10,7 @@ Provides endpoints for:
 """
 
 import asyncio
+import os
 import logging
 import uuid
 from typing import List, Optional
@@ -55,6 +56,16 @@ class InboundSimRequest(BaseModel):
     caller_inquiry: str = "Pricing inquiry for 25 sales seats and enterprise API integration"
 
 
+class DirectOutboundCallRequest(BaseModel):
+    phone_number: str = Field(..., min_length=5, description="Target phone number (e.g. 10-digit Indian number or +91...)")
+    language: Optional[str] = "Hindi"
+    customer_name: Optional[str] = "Customer"
+    business_name: Optional[str] = "Vyepari CRM"
+    call_reason: Optional[str] = "Outbound Consultation"
+    extra_context: Optional[dict] = None
+    user_id: Optional[str] = None
+
+
 class VoiceSettingsPayload(BaseModel):
     vapi_api_key: Optional[str] = None
     vapi_public_key: Optional[str] = None
@@ -64,6 +75,8 @@ class VoiceSettingsPayload(BaseModel):
     twilio_phone_number: Optional[str] = None
     sarvam_api_key: Optional[str] = None
     sarvam_speaker: Optional[str] = "priya"
+    sarvam_connection_id: Optional[str] = None
+    sarvam_agent_phone_number: Optional[str] = None
     public_webhook_url: Optional[str] = None
     voice_provider: Optional[str] = "sarvam"
     voice_id: Optional[str] = "priya"
@@ -128,7 +141,7 @@ async def create_single_call(
         )
     else:
         background_tasks.add_task(
-            voice_engine.dispatch_vapi_call,
+            voice_engine.dispatch_outbound_call,
             call_id=call_id,
             customer_name=payload.customer_name,
             customer_phone=payload.customer_phone,
@@ -139,6 +152,55 @@ async def create_single_call(
         )
 
     return {"success": True, "call_id": call_id, "status": "queued"}
+
+
+@router.post("/call/outbound", status_code=201)
+async def direct_outbound_call(payload: DirectOutboundCallRequest):
+    """
+    Direct outbound call endpoint matching backend.zip specification.
+    Dispatches via Sarvam AI Samvaad agent with Exotel telephony and logs in Supabase.
+    """
+    call_id = str(uuid.uuid4())
+    formatted_phone = sarvam_service.format_e164_phone_number(payload.phone_number)
+    customer_name = (payload.customer_name or "Customer").strip()
+    business_name = (payload.business_name or "Vyepari CRM").strip()
+    call_reason = (payload.call_reason or "Outbound Consultation").strip()
+
+    call_data = {
+        "id": call_id,
+        "campaign_id": None,
+        "direction": "outbound",
+        "customer_name": customer_name,
+        "customer_phone": formatted_phone,
+        "business_name": business_name,
+        "call_reason": call_reason,
+        "status": "queued",
+        "duration_seconds": 0,
+        "transcript": [],
+        "analysis": None,
+    }
+    await db.create_voice_call(call_data, user_id=payload.user_id)
+
+    dispatch_res = await voice_engine.dispatch_sarvam_exotel_call(
+        call_id=call_id,
+        customer_name=customer_name,
+        customer_phone=formatted_phone,
+        business_name=business_name,
+        call_reason=call_reason,
+        language=payload.language or "Hindi",
+        extra_context=payload.extra_context,
+    )
+
+    if not dispatch_res.get("success"):
+        raise HTTPException(status_code=500, detail=dispatch_res.get("error", "Call dispatch failed"))
+
+    call_sid = dispatch_res.get("call_sid") or call_id
+    return {
+        "status": "success",
+        "call_id": call_id,
+        "call_sid": call_sid,
+        "sarvam_response": dispatch_res.get("sarvam_response"),
+    }
 
 
 @router.post("/calls/batch", status_code=202)
@@ -181,7 +243,7 @@ async def create_batch_calls(payload: BatchCallRequest, background_tasks: Backgr
                     extra_context=item.extra_context,
                 )
             else:
-                await voice_engine.dispatch_vapi_call(
+                await voice_engine.dispatch_outbound_call(
                     call_id=c_id,
                     customer_name=item.customer_name,
                     customer_phone=item.customer_phone,
@@ -256,8 +318,14 @@ async def get_call_details(call_id: str):
     if not call:
         raise HTTPException(status_code=404, detail="Call record not found")
 
-    # If call was placed via live Vapi and is still active, sync latest status & transcripts
-    if call.get("vapi_call_id") and call.get("status") in ("queued", "in-progress", "ringing"):
+    # If call was placed via live Vapi (not Sarvam) and is still active, sync latest status & transcripts
+    vapi_id = call.get("vapi_call_id")
+    if (
+        vapi_id
+        and not str(vapi_id).startswith("sarvam_")
+        and str(vapi_id) != str(call_id)
+        and call.get("status") in ("queued", "in-progress", "ringing")
+    ):
         try:
             synced = await voice_engine.sync_vapi_call_status(call_id)
             if synced:
@@ -472,6 +540,22 @@ async def vapi_webhook(request: Request):
         return {"ok": False, "error": str(e)}
 
 
+@router.post("/sarvam/webhook")
+async def sarvam_webhook(request: Request):
+    """
+    Webhook receiver for Sarvam AI Outbound agent events and interaction transcripts.
+    Saves transcripts and updates call status in Supabase.
+    """
+    try:
+        body = await request.json()
+        logger.info(f"Sarvam webhook payload received: {list(body.keys()) if isinstance(body, dict) else type(body)}")
+        result = await voice_engine.handle_sarvam_webhook(body)
+        return result
+    except Exception as e:
+        logger.exception(f"Error processing Sarvam webhook: {e}")
+        return {"status": "error", "error": str(e)}
+
+
 @router.get("/stats")
 async def get_stats(
     user_id: Optional[str] = Query(None),
@@ -504,7 +588,9 @@ async def get_config():
         "has_sarvam_key": bool(creds.get("sarvam_api_key")),
         "sarvam_key_masked": f"...{creds['sarvam_api_key'][-4:]}" if creds.get("sarvam_api_key") else "",
         "sarvam_speaker": creds.get("sarvam_speaker", "priya"),
-        "public_webhook_url": creds.get("public_webhook_url", ""),
+        "sarvam_connection_id": os.getenv("SARVAM_CONNECTION_ID", "Exotel-091864e2-adfa"),
+        "sarvam_agent_phone_number": os.getenv("SARVAM_AGENT_PHONE_NUMBER", "+917948518309"),
+        "public_webhook_url": creds.get("public_webhook_url", "") or os.getenv("PUBLIC_BASE_URL", ""),
         "voice_provider": creds.get("voice_provider", "sarvam"),
         "voice_id": creds.get("voice_id", "priya"),
     }
@@ -530,6 +616,10 @@ async def save_config(payload: VoiceSettingsPayload):
         updates["sarvam_api_key"] = payload.sarvam_api_key.strip()
     if payload.sarvam_speaker is not None:
         updates["sarvam_speaker"] = payload.sarvam_speaker.strip()
+    if payload.sarvam_connection_id is not None:
+        updates["sarvam_connection_id"] = payload.sarvam_connection_id.strip()
+    if payload.sarvam_agent_phone_number is not None:
+        updates["sarvam_agent_phone_number"] = payload.sarvam_agent_phone_number.strip()
     if payload.public_webhook_url is not None:
         updates["public_webhook_url"] = payload.public_webhook_url.strip()
     if payload.voice_provider is not None:
