@@ -45,3 +45,9 @@ supabase/.temp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Video files & heavy submodules (do not push to repo)
+drive-download-*/
+*.mp4
+tools/upscayl-repo/
+
