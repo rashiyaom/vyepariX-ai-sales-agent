@@ -2,232 +2,81 @@ import React, { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/components/app/theme";
 import { Sun, Moon } from "lucide-react";
 
-const TOTAL_FRAMES = 240;
-const FPS = 24;
-const FRAME_DURATION = 1000 / FPS;
-const TRANSITION_DURATION_FRAMES = 16; // ~0.65s buttery smooth cinematic dissolve
-
-const pad4 = (num: number) => num.toString().padStart(4, "0");
-
 export function CinematicFrameHero() {
   const { theme, setTheme } = useTheme();
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lightVideoRef = useRef<HTMLVideoElement | null>(null);
+  const darkVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Frame image caches
-  const lightFramesRef = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null));
-  const darkFramesRef = useRef<(HTMLImageElement | null)[]>(new Array(TOTAL_FRAMES).fill(null));
-
-  // Current visual mode
+  // Active theme state
   const [currentTheme, setCurrentTheme] = useState<"light" | "dark">(
     theme === "dark" ? "dark" : "light",
   );
 
-  // Animation & transition refs
-  const currentFrameRef = useRef<number>(0);
-  const activeModeRef = useRef<"light" | "dark">(theme === "dark" ? "dark" : "light");
-  const targetModeRef = useRef<"light" | "dark">(theme === "dark" ? "dark" : "light");
-  const isTransitioningRef = useRef<boolean>(false);
-  const transitionProgressRef = useRef<number>(0); // 0 to 1
-  const fromModeRef = useRef<"light" | "dark">(theme === "dark" ? "dark" : "light");
-  const toModeRef = useRef<"light" | "dark">(theme === "dark" ? "dark" : "light");
-
-  const lastFrameTimeRef = useRef<number>(0);
-  const rafIdRef = useRef<number | null>(null);
-
-  // Progressive high-efficiency frame preloader
+  // Sync external theme changes
   useEffect(() => {
-    let isCancelled = false;
+    if (theme === "dark" || theme === "light") {
+      setCurrentTheme(theme);
+    }
+  }, [theme]);
 
-    const loadSingleFrame = (mode: "light" | "dark", index: number): Promise<HTMLImageElement> => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.src = `/frames/${mode}/frame_${pad4(index + 1)}.webp`;
-        img.decoding = "async";
-        img.onload = () => {
-          if (mode === "light") {
-            lightFramesRef.current[index] = img;
-          } else {
-            darkFramesRef.current[index] = img;
-          }
-          resolve(img);
-        };
-        img.onerror = () => resolve(img);
-      });
+  // Frame-accurate hardware video synchronization
+  useEffect(() => {
+    const lightVideo = lightVideoRef.current;
+    const darkVideo = darkVideoRef.current;
+    if (!lightVideo || !darkVideo) return;
+
+    // Ensure both videos start playing seamlessly
+    const playBoth = async () => {
+      try {
+        await Promise.all([
+          lightVideo.play().catch(() => {}),
+          darkVideo.play().catch(() => {}),
+        ]);
+      } catch {
+        // Autoplay policy fallback
+      }
     };
 
-    // Priority load first 32 frames for instant playback
-    const priorityPromises: Promise<HTMLImageElement>[] = [];
-    for (let i = 0; i < 32; i++) {
-      priorityPromises.push(loadSingleFrame("light", i));
-      priorityPromises.push(loadSingleFrame("dark", i));
-    }
+    playBoth();
 
-    Promise.all(priorityPromises).then(() => {
-      if (isCancelled) return;
-      // Load remaining frames in batches of 24
-      let nextIndex = 32;
-      const batchSize = 24;
-
-      const loadNextBatch = () => {
-        if (isCancelled || nextIndex >= TOTAL_FRAMES) return;
-        const batchPromises: Promise<HTMLImageElement>[] = [];
-        const limit = Math.min(TOTAL_FRAMES, nextIndex + batchSize);
-        for (let i = nextIndex; i < limit; i++) {
-          batchPromises.push(loadSingleFrame("light", i));
-          batchPromises.push(loadSingleFrame("dark", i));
+    // Strict time alignment so transitions occur at the exact same millisecond
+    const syncVideos = () => {
+      if (Math.abs(lightVideo.currentTime - darkVideo.currentTime) > 0.04) {
+        // Master clock follows the currently visible video
+        if (currentTheme === "light") {
+          darkVideo.currentTime = lightVideo.currentTime;
+        } else {
+          lightVideo.currentTime = darkVideo.currentTime;
         }
-        nextIndex = limit;
-        Promise.all(batchPromises).then(() => {
-          if (!isCancelled && nextIndex < TOTAL_FRAMES) {
-            setTimeout(loadNextBatch, 20);
-          }
-        });
-      };
+      }
+    };
 
-      setTimeout(loadNextBatch, 40);
-    });
+    const syncInterval = setInterval(syncVideos, 300);
 
     return () => {
-      isCancelled = true;
+      clearInterval(syncInterval);
     };
-  }, []);
+  }, [currentTheme]);
 
-  // Instant seamless lighting transition trigger
+  // Instant seamless lighting crossfade trigger
   const handleToggle = () => {
-    const newTarget = activeModeRef.current === "light" ? "dark" : "light";
-
-    if (isTransitioningRef.current) {
-      // If clicked during an active transition, seamlessly reverse from current progress
-      fromModeRef.current = toModeRef.current;
-      toModeRef.current = newTarget;
-      transitionProgressRef.current = 1 - transitionProgressRef.current;
-    } else {
-      fromModeRef.current = activeModeRef.current;
-      toModeRef.current = newTarget;
-      transitionProgressRef.current = 0;
-      isTransitioningRef.current = true;
-    }
-
-    targetModeRef.current = newTarget;
+    const newTarget = currentTheme === "light" ? "dark" : "light";
     setCurrentTheme(newTarget);
     setTheme(newTarget);
+
+    // Re-verify synchronization at trigger point
+    const light = lightVideoRef.current;
+    const dark = darkVideoRef.current;
+    if (light && dark) {
+      if (newTarget === "dark") {
+        dark.currentTime = light.currentTime;
+      } else {
+        light.currentTime = dark.currentTime;
+      }
+    }
   };
-
-  // Main Canvas Rendering Loop with Real-Time Synchronized Dissolve
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    const ctx = canvas.getContext("2d", { alpha: false });
-    if (!ctx) return;
-
-    const render = (time: number) => {
-      rafIdRef.current = requestAnimationFrame(render);
-
-      const elapsed = time - lastFrameTimeRef.current;
-      if (elapsed < FRAME_DURATION) return;
-
-      lastFrameTimeRef.current = time - (elapsed % FRAME_DURATION);
-
-      // Advance frame index in continuous loop
-      const idx = currentFrameRef.current;
-      currentFrameRef.current = (idx + 1) % TOTAL_FRAMES;
-
-      // Advance transition blend progress if transitioning
-      if (isTransitioningRef.current) {
-        transitionProgressRef.current += 1 / TRANSITION_DURATION_FRAMES;
-        if (transitionProgressRef.current >= 1) {
-          transitionProgressRef.current = 1;
-          isTransitioningRef.current = false;
-          activeModeRef.current = toModeRef.current;
-        }
-      }
-
-      // Determine frames to draw
-      const isBlending = isTransitioningRef.current;
-      const currentMode = activeModeRef.current;
-      const fromMode = fromModeRef.current;
-      const toMode = toModeRef.current;
-
-      const baseFrames = isBlending
-        ? fromMode === "light"
-          ? lightFramesRef.current
-          : darkFramesRef.current
-        : currentMode === "light"
-          ? lightFramesRef.current
-          : darkFramesRef.current;
-
-      const blendFrames = toMode === "light" ? lightFramesRef.current : darkFramesRef.current;
-
-      const baseImg = baseFrames[idx];
-      const blendImg = blendFrames[idx];
-
-      if (baseImg && baseImg.complete && baseImg.naturalWidth > 0) {
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const displayWidth = container.clientWidth;
-        const displayHeight = container.clientHeight;
-
-        if (canvas.width !== displayWidth * dpr || canvas.height !== displayHeight * dpr) {
-          canvas.width = displayWidth * dpr;
-          canvas.height = displayHeight * dpr;
-        }
-
-        ctx.save();
-        ctx.scale(dpr, dpr);
-
-        // Aspect ratio cover geometry (2560x1440 2K Quad HD 16:9)
-        const srcAspect = 2560 / 1440;
-        const canvasAspect = displayWidth / displayHeight;
-
-        let drawWidth: number;
-        let drawHeight: number;
-        let drawX: number;
-        let drawY: number;
-
-        if (canvasAspect > srcAspect) {
-          drawWidth = displayWidth;
-          drawHeight = displayWidth / srcAspect;
-          drawX = 0;
-          drawY = (displayHeight - drawHeight) / 2;
-        } else {
-          drawHeight = displayHeight;
-          drawWidth = displayHeight * srcAspect;
-          drawX = (displayWidth - drawWidth) / 2;
-          drawY = 0;
-        }
-
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-
-        // Draw base frame
-        ctx.globalAlpha = 1;
-        ctx.drawImage(baseImg, drawX, drawY, drawWidth, drawHeight);
-
-        // If transitioning, draw incoming mode frame at matching index with smooth alpha dissolve
-        if (isBlending && blendImg && blendImg.complete && blendImg.naturalWidth > 0) {
-          const t = transitionProgressRef.current;
-          // Smooth Hermite interpolation (smoothstep) for organic lighting fade: 3t^2 - 2t^3
-          const alpha = t * t * (3 - 2 * t);
-          ctx.globalAlpha = Math.min(1, Math.max(0, alpha));
-          ctx.drawImage(blendImg, drawX, drawY, drawWidth, drawHeight);
-          ctx.globalAlpha = 1;
-        }
-
-        ctx.restore();
-      }
-    };
-
-    rafIdRef.current = requestAnimationFrame(render);
-
-    return () => {
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
-    };
-  }, []);
 
   return (
     <div
@@ -236,8 +85,33 @@ export function CinematicFrameHero() {
         currentTheme === "dark" ? "bg-black" : "bg-[#f5f5f7]"
       }`}
     >
-      {/* ── IMMERSIVE FULLSCREEN 1080P CANVAS ── */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover block" />
+      {/* ── HARDWARE-ACCELERATED 2K LIGHT MODE VIDEO STREAM ── */}
+      <video
+        ref={lightVideoRef}
+        src="/videos/hero_light_2k.mp4"
+        playsInline
+        muted
+        loop
+        autoPlay
+        preload="auto"
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out pointer-events-none will-change-transform ${
+          currentTheme === "light" ? "opacity-100 z-10" : "opacity-0 z-0"
+        }`}
+      />
+
+      {/* ── HARDWARE-ACCELERATED 2K DARK MODE VIDEO STREAM ── */}
+      <video
+        ref={darkVideoRef}
+        src="/videos/hero_dark_2k.mp4"
+        playsInline
+        muted
+        loop
+        autoPlay
+        preload="auto"
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out pointer-events-none will-change-transform ${
+          currentTheme === "dark" ? "opacity-100 z-10" : "opacity-0 z-0"
+        }`}
+      />
 
       {/* ── MINIMAL FLOATING LIGHT / DARK TOGGLE ── */}
       <div className="absolute top-6 right-6 z-50">

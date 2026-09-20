@@ -48,6 +48,11 @@ Thumbs.db
 
 # Video files & heavy submodules (do not push to repo)
 drive-download-*/
-*.mp4
 tools/upscayl-repo/
+tools/*.webp
+tools/*.png
+tools/model_tests/
+frontend/public/sample_4k/*.png
+*.mp4
+!frontend/public/videos/*.mp4
 
