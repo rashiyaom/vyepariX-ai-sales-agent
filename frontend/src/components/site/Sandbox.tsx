@@ -414,10 +414,14 @@ export function Sandbox() {
             >
               <span>{s.label}</span>
               <span
-                className={`text-[9px] px-1 py-0.2 border uppercase ${
-                  s.mode === "calling_only"
-                    ? "bg-violet/20 text-violet border-violet/40"
-                    : "bg-emerald-500/20 text-emerald-700 dark:text-lime border-emerald-500/40"
+                className={`text-[9px] px-1.5 py-0.2 border uppercase font-mono ${
+                  scenario.id === s.id
+                    ? s.mode === "calling_only"
+                      ? "bg-violet/30 text-paper border-violet/60"
+                      : "bg-lime/20 text-lime border-lime/50"
+                    : s.mode === "calling_only"
+                      ? "bg-violet/10 text-violet border-violet/30"
+                      : "bg-emerald-600/10 text-emerald-700 dark:text-lime border-emerald-500/30"
                 }`}
               >
                 {s.mode === "calling_only" ? "Calling Only" : "Leads + Calling"}

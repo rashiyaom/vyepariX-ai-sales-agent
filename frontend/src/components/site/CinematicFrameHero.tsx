@@ -232,7 +232,9 @@ export function CinematicFrameHero() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-screen min-h-[100dvh] overflow-hidden bg-black select-none"
+      className={`relative w-full h-screen min-h-[100dvh] overflow-hidden select-none transition-colors duration-500 ${
+        currentTheme === "dark" ? "bg-black" : "bg-[#f5f5f7]"
+      }`}
     >
       {/* ── IMMERSIVE FULLSCREEN 1080P CANVAS ── */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover block" />
@@ -243,7 +245,11 @@ export function CinematicFrameHero() {
           onClick={handleToggle}
           title={currentTheme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
           aria-label="Toggle theme mode"
-          className="group relative flex items-center justify-center h-12 w-12 rounded-full backdrop-blur-2xl bg-black/40 border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-300 hover:scale-110 hover:border-white/40 hover:bg-black/60 active:scale-95 cursor-pointer"
+          className={`group relative flex items-center justify-center h-12 w-12 rounded-full backdrop-blur-2xl transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer ${
+            currentTheme === "dark"
+              ? "bg-black/40 border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.5)] hover:border-white/40 hover:bg-black/60"
+              : "bg-white/80 border border-black/15 shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:border-black/30 hover:bg-white/95"
+          }`}
         >
           {/* Subtle Ambient Glow */}
           <div
@@ -259,7 +265,7 @@ export function CinematicFrameHero() {
             {currentTheme === "dark" ? (
               <Moon className="h-5 w-5 text-cyan-300 transition-colors drop-shadow-[0_0_8px_rgba(103,232,249,0.8)]" />
             ) : (
-              <Sun className="h-5 w-5 text-amber-400 transition-colors drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+              <Sun className="h-5 w-5 text-amber-500 transition-colors drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
             )}
           </div>
         </button>
@@ -272,12 +278,22 @@ export function CinematicFrameHero() {
             const el = document.getElementById("platform-content");
             if (el) el.scrollIntoView({ behavior: "smooth" });
           }}
-          className="flex flex-col items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer text-white/80"
+          className={`flex flex-col items-center gap-1.5 opacity-70 hover:opacity-100 transition-all cursor-pointer ${
+            currentTheme === "dark" ? "text-white/80 hover:text-white" : "text-neutral-900/80 hover:text-neutral-950"
+          }`}
           aria-label="Scroll to platform overview"
         >
-          <span className="text-[9px] font-mono tracking-widest uppercase">Scroll</span>
-          <div className="h-6 w-3.5 rounded-full border border-white/40 flex items-start justify-center p-0.5">
-            <div className="h-1.5 w-1 rounded-full bg-white animate-bounce" />
+          <span className="text-[9px] font-mono tracking-widest uppercase font-bold">Scroll</span>
+          <div
+            className={`h-6 w-3.5 rounded-full border flex items-start justify-center p-0.5 ${
+              currentTheme === "dark" ? "border-white/50" : "border-neutral-900/50"
+            }`}
+          >
+            <div
+              className={`h-1.5 w-1 rounded-full animate-bounce ${
+                currentTheme === "dark" ? "bg-white" : "bg-neutral-900"
+              }`}
+            />
           </div>
         </button>
       </div>

@@ -28,7 +28,7 @@ const MODULES = [
   {
     n: "01",
     t: "Business Onboarding Ingestion",
-    tag: "URL ┬╖ Docs ┬╖ Profile",
+    tag: "URL · Docs · Profile",
     d: "Business submits company URL, product catalog, sales decks, or documentation. Zero complex manual configuration required.",
     metric: "Instant Ingestion",
   },
@@ -78,7 +78,7 @@ const MODULES = [
     n: "08",
     t: "Multilingual AI Voice Fleet",
     tag: "Sub-150ms Turn-Taking",
-    d: "Conducts human-like outbound & inbound calls in Hindi, Gujarati, English, Spanish, and regional dialects ΓÇö qualifying leads, answering FAQs, and retrying missed calls.",
+    d: "Conducts human-like outbound & inbound calls in Hindi, Gujarati, English, Spanish, and regional dialects — qualifying leads, answering FAQs, and retrying missed calls.",
     metric: "61% Average Connect Rate",
   },
   {
@@ -114,7 +114,7 @@ const CAPABILITIES = [
   {
     tag: "Native Dialects",
     t: "Multilingual Voice Conversions",
-    d: "AI voice agents conduct human-like, consultative phone conversations in Hindi, Gujarati, English, Spanish, and regional dialects ΓÇö qualifying needs, resolving objections, and booking meetings directly on AE calendars.",
+    d: "AI voice agents conduct human-like, consultative phone conversations in Hindi, Gujarati, English, Spanish, and regional dialects — qualifying needs, resolving objections, and booking meetings directly on AE calendars.",
     stat: "14+ Supported Dialects",
   },
   {
@@ -130,74 +130,26 @@ const PROTOCOL_TRANSCRIPTS: Record<
   { title: string; agent: string; lead: string; outcome: string; lines: [string, string][] }
 > = {
   hi: {
-    title: "Hindi Voice Protocol ΓÇö Ananya Sharma (Northbridge Infra)",
+    title: "Hindi Voice Protocol — Ananya Sharma (Northbridge Infra)",
     agent: "Saanvi",
     lead: "Ananya Sharma",
-    outcome: "INTERESTED ┬╖ Meeting booked Thu 11:00 IST",
+    outcome: "INTERESTED · Meeting booked Thu 11:00 IST",
     lines: [
       [
         "AGENT",
-        "αñ¿αñ«αñ╕αÑìαññαÑç Ananya αñ£αÑÇ, αñ«αÑêαñé Vyaperi X αñ╕αÑç αñ¼αÑïαñ▓ αñ░αñ╣αÑÇ αñ╣αÑéαñüαÑñ αñåαñ¬αñ¿αÑç SharePoint migration partner αñòαÑç αñ¼αñ╛αñ░αÑç αñ«αÑçαñé αñ¬αÑïαñ╕αÑìαñƒ αñòαñ┐αñ»αñ╛ αñÑαñ╛ ΓÇö αñòαÑìαñ»αñ╛ αñàαñ¡αÑÇ αñ╡αñ╣ project active αñ╣αÑê?",
+        "नमस्ते Ananya जी, मैं Vyaperi X से बोल रही हूँ। आपने SharePoint migration partner के बारे में पोस्ट किया था — क्या अभी वह project active है?",
       ],
       [
         "PROSPECT",
-        "αñ╣αñ╛αñü, αñ╣αñ« Q4 αñ«αÑçαñé αñ╢αÑüαñ░αÑé αñòαñ░αñ¿αñ╛ αñÜαñ╛αñ╣αññαÑç αñ╣αÑêαñéαÑñ Budget approved αñ╣αÑï αñÜαÑüαñòαñ╛ αñ╣αÑê αñöαñ░ legacy migration αñ«αÑüαñûαÑìαñ» scope αñ╣αÑêαÑñ",
+        "हाँ, हम Q4 में शुरू करना चाहते हैं। Budget approved हो चुका है और legacy migration मुख्य scope है।",
       ],
+      ["AGENT", "समझ गई। क्या Microsoft 365 integration और user training भी scope में शामिल है?"],
+      ["PROSPECT", "बिल्कुल, दोनों चाहिए।"],
       [
         "AGENT",
-        "αñ╕αñ«αñ¥ αñùαñêαÑñ αñòαÑìαñ»αñ╛ Microsoft 365 integration αñöαñ░ user training αñ¡αÑÇ scope αñ«αÑçαñé αñ╢αñ╛αñ«αñ┐αñ▓ αñ╣αÑê?",
+        "बढ़िया — गुरुवार सुबह 11 बजे हमारे Senior Solution Architect के साथ एक scoping call schedule कर देती हूँ?",
       ],
-      ["PROSPECT", "αñ¼αñ┐αñ▓αÑìαñòαÑüαñ▓, αñªαÑïαñ¿αÑïαñé αñÜαñ╛αñ╣αñ┐αñÅαÑñ"],
-      [
-        "AGENT",
-        "αñ¼αñóαñ╝αñ┐αñ»αñ╛ ΓÇö αñùαÑüαñ░αÑüαñ╡αñ╛αñ░ αñ╕αÑüαñ¼αñ╣ 11 αñ¼αñ£αÑç αñ╣αñ«αñ╛αñ░αÑç Senior Solution Architect αñòαÑç αñ╕αñ╛αñÑ αñÅαñò scoping call schedule αñòαñ░ αñªαÑçαññαÑÇ αñ╣αÑéαñü?",
-      ],
-      [
-        "PROSPECT",
-        "αñ╣αñ╛αñü, αñÜαñ▓αÑçαñùαñ╛αÑñ αñêαñ«αÑçαñ▓ αñ¬αñ░ αñçαñ¿αñ╡αñ╛αñçαñƒ αñ¡αÑçαñ£ αñªαÑÇαñ£αñ┐αñÅαÑñ",
-      ],
-    ],
-  },
-  gu: {
-    title: "Gujarati Voice Protocol ΓÇö Bharat Patel (Patel Textiles, Surat)",
-    agent: "Dhruv",
-    lead: "Bharat Patel",
-    outcome: "INTERESTED ┬╖ Demo scheduled Wed 10:30 IST",
-    lines: [
-      [
-        "AGENT",
-        "α¬¿α¬«α¬╕α½ìα¬ñα½ç Bharat α¬¡α¬╛α¬ê! α¬╣α½üα¬é α¬╡α½ìα¬»α¬╛α¬¬α¬╛α¬░α½Ç X α¬Ñα½Ç α¬ºα½ìα¬░α½üα¬╡ α¬╡α¬╛α¬ñ α¬òα¬░α½üα¬é α¬¢α½üα¬é. α¬åα¬¬α¬¿α½Ç α¬òα¬éα¬¬α¬¿α½Ç α¬«α¬╛α¬ƒα½ç Cloud ERP α¬àα¬¿α½ç Inventory Automation α¬╕α½ïα¬▓α½ìα¬»α½üα¬╢α¬¿ α¬àα¬éα¬ùα½ç α¬╡α¬╛α¬ñ α¬òα¬░α¬╡α½Ç α¬╣α¬ñα½Ç ΓÇö α¬╢α½üα¬é α¬åα¬¬ 2 α¬«α¬┐α¬¿α¬┐α¬ƒ α¬½α¬╛α¬│α¬╡α½Ç α¬╢α¬òα¬╢α½ï?",
-      ],
-      [
-        "PROSPECT",
-        "α¬╣α¬╛ α¬ºα½ìα¬░α½üα¬╡ α¬¡α¬╛α¬ê, α¬¼α½ïα¬▓α½ï. α¬àα¬«α½ç α¬╕α½üα¬░α¬ñ α¬àα¬¿α½ç α¬àα¬«α¬ªα¬╛α¬╡α¬╛α¬ªα¬¿α¬╛ 4 α¬ùα½ïα¬íα¬╛α¬ëα¬¿ α¬«α¬╛α¬ƒα½ç α¬╕α½çα¬¿α½ìα¬ƒα½ìα¬░α¬▓α¬╛α¬çα¬¥α½ìα¬í α¬╕α½ïα¬½α½ìα¬ƒα¬╡α½çα¬░ α¬╢α½ïα¬ºα½Ç α¬░α¬╣α½ìα¬»α¬╛ α¬¢α½Çα¬Å.",
-      ],
-      [
-        "AGENT",
-        "α¬ëα¬ñα½ìα¬ñα¬«! α¬àα¬«α¬╛α¬░α½üα¬é α¬╕α½ïα¬▓α½ìα¬»α½üα¬╢α¬¿ GST α¬¼α¬┐α¬▓α¬┐α¬éα¬ù, α¬░α¬┐α¬»α¬▓-α¬ƒα¬╛α¬çα¬« α¬╕α½ìα¬ƒα½ïα¬ò α¬àα¬¿α½ç α¬«α¬▓α½ìα¬ƒα½Ç-α¬▓α½ïα¬òα½çα¬╢α¬¿ α¬╕α¬┐α¬éα¬ò α¬¬α½éα¬░α½Ç α¬░α½Çα¬ñα½ç α¬ôα¬ƒα½ïα¬«α½çα¬ƒ α¬òα¬░α½ç α¬¢α½ç. α¬╢α½üα¬é α¬¼α½üα¬ºα¬╡α¬╛α¬░α½ç α¬╕α¬╡α¬╛α¬░α½ç 10:30 α¬╡α¬╛α¬ùα½ìα¬»α½ç α¬Åα¬ò α¬▓α¬╛α¬êα¬╡ α¬íα½çα¬«α½ï α¬░α¬╛α¬ûα½Çα¬Å?",
-      ],
-      [
-        "PROSPECT",
-        "α¬╣α¬╛, α¬¼α½üα¬ºα¬╡α¬╛α¬░α½ç α½ºα½ª:α½⌐α½ª α¬àα¬¿α½üα¬òα½éα¬│ α¬░α¬╣α½çα¬╢α½ç. α¬çα¬«α½çα¬çα¬▓ α¬¬α¬░ α¬▓α¬┐α¬éα¬ò α¬«α½ïα¬òα¬▓α½Ç α¬åα¬¬α¬£α½ï.",
-      ],
-    ],
-  },
-  en: {
-    title: "English Enterprise Protocol ΓÇö Daniel Whitfield (Orbit Retail UK)",
-    agent: "Arjun",
-    lead: "Daniel Whitfield",
-    outcome: "CALLBACK ┬╖ Scheduled 13 Sep 15:00 BST",
-    lines: [
-      [
-        "AGENT",
-        "Hi Daniel, calling from VYAPERI X regarding your recent post on headless commerce replatforming ΓÇö is the vendor selection currently underway?",
-      ],
-      ["PROSPECT", "It is, but our board review is slated for the 12th of September."],
-      [
-        "AGENT",
-        "Understood. I will schedule an automated callback for the 13th and send over our retail architectural brief in the meantime.",
-      ],
-      ["PROSPECT", "That sounds perfect, thanks Arjun."],
+      ["PROSPECT", "हाँ, चलेगा। ईमेल पर इनवाइट भेज दीजिए।"],
     ],
   },
 };
@@ -276,12 +228,12 @@ export function MainPlatformLanding() {
       id="platform-content"
       className="min-h-screen bg-paper text-ink transition-colors duration-300 relative selection:bg-lime selection:text-neutral-950"
     >
-      {/* ≡ƒÜÇ Neon Top Scroll Progress Indicator */}
+      {/* 🚀 Neon Top Scroll Progress Indicator */}
       <ScrollProgressBar />
 
       <SiteHeader />
 
-      {/* ΓöÇΓöÇ /01 HERO SECTION WITH LIVE HUD RADAR ΓöÇΓöÇ */}
+      {/* ── /01 HERO SECTION WITH LIVE HUD RADAR ── */}
       <section className="border-b border-ink/20 overflow-hidden">
         <div className="mx-auto grid max-w-[1400px] gap-10 px-4 py-12 lg:grid-cols-[1.05fr_1fr] lg:px-8 lg:py-20">
           <div className="min-w-0 space-y-6">
@@ -305,12 +257,12 @@ export function MainPlatformLanding() {
 
             <ScrollReveal variant="fade-up" delay={250}>
               <p className="label-mono text-violet text-sm font-bold">
-                αñ╕αÑüαñ¿αÑï ┬╖ αñ╕αñ«αñ¥αÑï ┬╖ αñ╕αÑîαñªαñ╛ αñòαñ░αÑï
+                सुनो · समझो · सौदा करो
               </p>
               <p className="mt-3 max-w-lg font-mono text-sm leading-relaxed text-muted-foreground">
                 VYAPERI X discovers high-intent prospects across 40+ public channels, enriches their
                 profiles with verified emails and phone numbers, and deploys multilingual AI voice
-                agents to qualify and close ΓÇö autonomously, 24/7.
+                agents to qualify and close — autonomously, 24/7.
               </p>
             </ScrollReveal>
 
@@ -365,7 +317,7 @@ export function MainPlatformLanding() {
               {/* Top HUD bar */}
               <div className="absolute left-4 top-4 z-10 flex items-center gap-2 border border-ink bg-paper px-3 py-1.5 label-mono shadow">
                 <span className="h-1.5 w-1.5 bg-lime live-dot" />
-                Autonomous Lead Radar ┬╖ Live
+                Autonomous Lead Radar · Live
               </div>
 
               <img
@@ -380,7 +332,7 @@ export function MainPlatformLanding() {
         </div>
       </section>
 
-      {/* ΓöÇΓöÇ /02 11-STEP AUTONOMOUS PIPELINE ΓöÇΓöÇ */}
+      {/* ── /02 11-STEP AUTONOMOUS PIPELINE ── */}
       <section id="pipeline" className="border-b border-ink/20">
         <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8">
           <ScrollReveal variant="fade-up">
@@ -397,7 +349,7 @@ export function MainPlatformLanding() {
         </div>
       </section>
 
-      {/* ΓöÇΓöÇ /03 INTERACTIVE SANDBOX SIMULATOR ΓöÇΓöÇ */}
+      {/* ── /03 INTERACTIVE SANDBOX SIMULATOR ── */}
       <section id="sandbox" className="border-b border-ink/20">
         <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8">
           <ScrollReveal variant="fade-up">
@@ -414,7 +366,7 @@ export function MainPlatformLanding() {
         </div>
       </section>
 
-      {/* ΓöÇΓöÇ /04 INTERACTIVE PIPELINE & ROI CALCULATOR ΓöÇΓöÇ */}
+      {/* ── /04 INTERACTIVE PIPELINE & ROI CALCULATOR ── */}
       <section className="border-b border-ink/20 bg-secondary/30">
         <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8">
           <ScrollReveal variant="fade-up">
@@ -452,7 +404,7 @@ export function MainPlatformLanding() {
                     <div className="flex justify-between font-mono text-xs">
                       <span className="font-bold">Average ACV / Deal Size:</span>
                       <span className="text-emerald-700 dark:text-lime font-extrabold text-sm">
-                        Γé╣{avgDealSize} Lakhs
+                        ₹{avgDealSize} Lakhs
                       </span>
                     </div>
                     <input
@@ -465,9 +417,9 @@ export function MainPlatformLanding() {
                       className="w-full accent-emerald-600 dark:accent-lime cursor-pointer"
                     />
                     <div className="flex justify-between font-mono text-[10px] text-muted-foreground">
-                      <span>Γé╣2 Lakhs</span>
-                      <span>Γé╣25 Lakhs</span>
-                      <span>Γé╣50+ Lakhs</span>
+                      <span>₹2 Lakhs</span>
+                      <span>₹25 Lakhs</span>
+                      <span>₹50+ Lakhs</span>
                     </div>
                   </div>
                 </div>
@@ -498,7 +450,7 @@ export function MainPlatformLanding() {
                     Monthly Pipeline Value
                   </div>
                   <div className="my-4 font-display text-4xl font-extrabold text-violet tabular-nums">
-                    Γé╣{pipelineGeneratedCr} Cr
+                    ₹{pipelineGeneratedCr} Cr
                   </div>
                   <div className="font-mono text-xs text-muted-foreground">
                     In qualified deal stages
@@ -510,7 +462,7 @@ export function MainPlatformLanding() {
                     Annual Cost Savings
                   </div>
                   <div className="my-4 font-display text-4xl font-extrabold text-emerald-700 dark:text-lime tabular-nums">
-                    Γé╣{costSavingsLakhs} L
+                    ₹{costSavingsLakhs} L
                   </div>
                   <div className="font-mono text-xs text-muted-foreground">
                     In manual dialing hours
@@ -522,7 +474,7 @@ export function MainPlatformLanding() {
         </div>
       </section>
 
-      {/* ΓöÇΓöÇ /05 MULTILINGUAL VOICE PROTOCOL & LIVE SPEECH SYNTHESIS ΓöÇΓöÇ */}
+      {/* ── /05 MULTILINGUAL VOICE PROTOCOL & LIVE SPEECH SYNTHESIS ── */}
       <section id="voice" className="border-b border-ink/20">
         <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8 space-y-10">
           <ScrollReveal variant="fade-up">
@@ -569,7 +521,7 @@ export function MainPlatformLanding() {
                         : "border-ink/20 hover:bg-secondary"
                     }`}
                   >
-                    Hindi (αñ╣αñ┐αñ¿αÑìαñªαÑÇ)
+                    Hindi (हिन्दी)
                   </button>
                   <button
                     onClick={() => setActiveLang("gu")}
@@ -579,7 +531,7 @@ export function MainPlatformLanding() {
                         : "border-ink/20 hover:bg-secondary"
                     }`}
                   >
-                    Gujarati (α¬ùα½üα¬£α¬░α¬╛α¬ñα½Ç)
+                    Gujarati (ગુજરાતી)
                   </button>
                   <button
                     onClick={() => setActiveLang("en")}
@@ -601,7 +553,7 @@ export function MainPlatformLanding() {
                     "Instant CRM meeting confirmation with audio recording & transcript",
                   ].map((li) => (
                     <li key={li} className="flex gap-2.5 font-mono text-xs text-ink">
-                      <span className="text-emerald-700 dark:text-lime font-bold">Γ£ô</span>
+                      <span className="text-emerald-700 dark:text-lime font-bold">✓</span>
                       {li}
                     </li>
                   ))}
@@ -630,7 +582,7 @@ export function MainPlatformLanding() {
                       }`}
                     >
                       <div className="font-bold text-[10px] mb-1 text-muted-foreground">
-                        [{role === "AGENT" ? `AI AGENT ΓÇö ${protocol.agent}` : protocol.lead}]
+                        [{role === "AGENT" ? `AI AGENT — ${protocol.agent}` : protocol.lead}]
                       </div>
                       <div>{text}</div>
                     </div>
@@ -646,7 +598,7 @@ export function MainPlatformLanding() {
         </div>
       </section>
 
-      {/* ΓöÇΓöÇ /06 CORE CAPABILITIES ΓöÇΓöÇ */}
+      {/* ── /06 CORE CAPABILITIES ── */}
       <section id="capabilities" className="border-b border-ink/20">
         <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8">
           <ScrollReveal variant="fade-up">
@@ -674,7 +626,7 @@ export function MainPlatformLanding() {
         </div>
       </section>
 
-      {/* ΓöÇΓöÇ /07 STATUS & INSTANT PROVISIONING CTA ΓöÇΓöÇ */}
+      {/* ── /07 STATUS & INSTANT PROVISIONING CTA ── */}
       <section className="border-b border-ink/20 overflow-hidden">
         <div className="mx-auto grid max-w-[1400px] gap-px bg-ink/15 px-0 lg:grid-cols-2">
           <ScrollReveal variant="fade-right" className="bg-paper p-8 lg:p-14 space-y-6">
@@ -704,7 +656,7 @@ export function MainPlatformLanding() {
             </h2>
             <div className="mt-6 space-y-5">
               {[
-                ["Multi-Source Discovery Radar", "Operational ┬╖ 42 Nodes", 100],
+                ["Multi-Source Discovery Radar", "Operational · 42 Nodes", 100],
                 ["Multilingual SIP Voice Engine", "Sub-150ms Latency Active", 100],
                 ["Real-Time MX & Phone Enrichment", "99.8% Resolution Rate", 99],
                 ["Bidirectional CRM Pipeline Sync", "Operational (HubSpot/Salesforce)", 100],
@@ -721,24 +673,24 @@ export function MainPlatformLanding() {
               ))}
             </div>
             <div className="mt-8 border border-ink bg-lime px-4 py-3 label-mono text-lime-foreground text-center font-bold">
-              Γ£ô All Autonomous Sales Pipelines Operational
+              ✓ All Autonomous Sales Pipelines Operational
             </div>
           </ScrollReveal>
         </div>
       </section>
 
-      {/* ΓöÇΓöÇ /12 INTELLIGENCE SUITE MODULE CTA ΓöÇΓöÇ */}
+      {/* ── /12 INTELLIGENCE SUITE MODULE CTA ── */}
       <section className="border-b border-ink/20">
         <div className="mx-auto max-w-[1400px] px-4 py-16 lg:px-8">
           <ScrollReveal variant="fade-up">
-            <SectionHead index="12" title="Intelligence Suite ΓÇö Commercial Due Diligence Engine">
-              <span className="label-mono text-muted-foreground">New Module ┬╖ Available Now</span>
+            <SectionHead index="12" title="Intelligence Suite — Commercial Due Diligence Engine">
+              <span className="label-mono text-muted-foreground">New Module · Available Now</span>
             </SectionHead>
           </ScrollReveal>
 
           <ScrollReveal variant="fade-up" delay={100} className="mt-8">
             <div className="grid gap-px bg-ink/15 lg:grid-cols-[1.2fr_1fr]">
-              {/* Left ΓÇö Description */}
+              {/* Left — Description */}
               <div className="bg-paper p-8 lg:p-12 space-y-6">
                 <div className="inline-flex items-center gap-2 border border-violet/30 bg-violet/5 px-3 py-1.5 label-mono text-violet">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -753,19 +705,19 @@ export function MainPlatformLanding() {
                 </h3>
                 <p className="max-w-md font-mono text-xs leading-relaxed text-muted-foreground">
                   Paste a company URL, attach their pitch decks, financial sheets, or product
-                  catalogs. The engine scrapes, ingests and cross-references all sources ΓÇö
+                  catalogs. The engine scrapes, ingests and cross-references all sources —
                   surfacing discrepancies, competitive gaps, conversion funnel health, and a
                   prioritized strategic roadmap in under 90 seconds.
                 </p>
                 <ul className="space-y-2">
                   {[
-                    "Per-source isolation ΓÇö no blended hallucinations",
+                    "Per-source isolation — no blended hallucinations",
                     "Automatic discrepancy detection between public & internal claims",
                     "Interactive 4-quarter growth forecast & funnel diagnostics",
                     "Prioritized action playbooks with execution checklists",
                   ].map((li) => (
                     <li key={li} className="flex gap-2.5 font-mono text-xs text-ink">
-                      <span className="text-emerald-700 dark:text-lime font-bold">Γ£ô</span>
+                      <span className="text-emerald-700 dark:text-lime font-bold">✓</span>
                       {li}
                     </li>
                   ))}
@@ -779,7 +731,7 @@ export function MainPlatformLanding() {
                 </Link>
               </div>
 
-              {/* Right ΓÇö Stats Grid */}
+              {/* Right — Stats Grid */}
               <div className="bg-secondary/30 p-8 lg:p-12 flex flex-col justify-between gap-8">
                 <div className="grid grid-cols-2 gap-px bg-ink/15">
                   {[
@@ -798,7 +750,7 @@ export function MainPlatformLanding() {
                   ))}
                 </div>
                 <div className="border border-ink bg-lime px-4 py-3 label-mono text-lime-foreground text-center font-bold">
-                  Γ£ô Intelligence Engine Operational
+                  ✓ Intelligence Engine Operational
                 </div>
               </div>
             </div>
